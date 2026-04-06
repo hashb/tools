@@ -249,7 +249,7 @@
     <div id="dropzone">
         <strong>Drag &amp; drop a .plist file here</strong>
         or click to select a file
-        <br><small style="margin-top:8px;display:block;color:#aaa">Supports XML plist files (.plist)</small>
+        <br><small style="margin-top:8px;display:block;color:#aaa">Supports XML and binary plist files (.plist)</small>
     </div>
     <input type="file" id="fileInput" accept=".plist,text/xml,application/xml">
 
@@ -275,6 +275,8 @@
     // value for dict: [{ key: string, node: Node }, ...]  (ordered)
     // value for array: [Node, ...]
 
+    // ─── XML plist parser ─────────────────────────────────────────────────────
+
     function parsePlistXML(xmlText) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(xmlText, 'application/xml');
@@ -284,17 +286,17 @@
         if (!plist) throw new Error('No <plist> element found');
         const root = firstValueElement(plist);
         if (!root) throw new Error('Empty plist');
-        return parseElement(root);
+        return parseXMLElement(root);
     }
 
     function firstValueElement(parent) {
         for (const child of parent.childNodes) {
-            if (child.nodeType === 1) return child; // Element
+            if (child.nodeType === 1) return child;
         }
         return null;
     }
 
-    function parseElement(el) {
+    function parseXMLElement(el) {
         const tag = el.tagName.toLowerCase();
         switch (tag) {
             case 'string':  return { type: 'string',  value: el.textContent };
@@ -312,17 +314,205 @@
                     const valEl = children[i + 1];
                     if (!keyEl || keyEl.tagName.toLowerCase() !== 'key') continue;
                     if (!valEl) continue;
-                    pairs.push({ key: keyEl.textContent, node: parseElement(valEl) });
+                    pairs.push({ key: keyEl.textContent, node: parseXMLElement(valEl) });
                 }
                 return { type: 'dict', value: pairs };
             }
             case 'array': {
                 const children = [...el.childNodes].filter(n => n.nodeType === 1);
-                return { type: 'array', value: children.map(parseElement) };
+                return { type: 'array', value: children.map(parseXMLElement) };
             }
             default:
                 return { type: 'string', value: el.textContent };
         }
+    }
+
+    // ─── Binary plist parser (bplist00) ───────────────────────────────────────
+    // Format reference: https://opensource.apple.com/source/CF/CF-550/CFBinaryPList.c
+
+    function parseBinaryPlist(buffer) {
+        const bytes = new Uint8Array(buffer);
+        const dv = new DataView(buffer);
+        const len = bytes.length;
+
+        // Validate magic
+        const magic = String.fromCharCode(...bytes.slice(0, 8));
+        if (!magic.startsWith('bplist')) throw new Error('Not a binary plist');
+        if (magic !== 'bplist00') {
+            throw new Error(
+                `Unsupported binary plist version "${magic.slice(6)}". ` +
+                `Only bplist00 is supported. If this is an NSKeyedArchiver archive (bplist15/16), ` +
+                `convert it with: plutil -convert xml1 file.plist`
+            );
+        }
+        if (len < 40) throw new Error('File too small to be a valid binary plist');
+
+        // 32-byte trailer at end of file
+        // Offset from end: [0-5] padding, [6] sortVersion, [7] offsetIntSize,
+        //   [8] objectRefSize, [9-16] numObjects, [17-24] topObject, [25-32] offsetTableOffset
+        const t = len - 32;
+        const offsetIntSize  = bytes[t + 6];
+        const objectRefSize  = bytes[t + 7];
+        const numObjects     = readUint64(dv, t + 8);
+        const topObject      = readUint64(dv, t + 16);
+        const offsetTableOff = readUint64(dv, t + 24);
+
+        if (offsetIntSize === 0 || objectRefSize === 0) throw new Error('Invalid binary plist trailer');
+
+        // Build offset table
+        const offsets = new Array(numObjects);
+        for (let i = 0; i < numObjects; i++) {
+            offsets[i] = readUintN(dv, offsetTableOff + i * offsetIntSize, offsetIntSize);
+        }
+
+        // Parse objects, caching to handle shared references
+        const cache = new Map();
+
+        function parseObject(idx) {
+            if (cache.has(idx)) {
+                // Deep-clone cached node so edits on one reference don't bleed into others
+                return deepClone(cache.get(idx));
+            }
+            const node = parseAtOffset(offsets[idx]);
+            cache.set(idx, node);
+            return node;
+        }
+
+        function readCountAndStart(offset, info) {
+            // info < 0xf  → count = info, data starts at offset+1
+            // info == 0xf → count stored as next integer object
+            if (info !== 0xf) return [info, offset + 1];
+            const intMarker = bytes[offset + 1];
+            const intByteCount = 1 << (intMarker & 0x0f);
+            let count = 0;
+            for (let i = 0; i < intByteCount; i++) count = count * 256 + bytes[offset + 2 + i];
+            return [count, offset + 2 + intByteCount];
+        }
+
+        function parseAtOffset(offset) {
+            const marker = bytes[offset];
+            const objType = (marker & 0xf0) >> 4;
+            const info    =  marker & 0x0f;
+
+            switch (objType) {
+                case 0x0: { // singleton
+                    if (info === 8) return { type: 'boolean', value: false };
+                    if (info === 9) return { type: 'boolean', value: true };
+                    return { type: 'string', value: '' }; // null / fill
+                }
+                case 0x1: { // integer
+                    const bc = 1 << info;
+                    const v = readSintN(dv, offset + 1, bc);
+                    return { type: 'integer', value: v };
+                }
+                case 0x2: { // real
+                    if (info === 2) return { type: 'real', value: dv.getFloat32(offset + 1, false) };
+                    return { type: 'real', value: dv.getFloat64(offset + 1, false) };
+                }
+                case 0x3: { // date (CF absolute time: seconds since 2001-01-01)
+                    const cf = dv.getFloat64(offset + 1, false);
+                    const unix = (cf + 978307200) * 1000;
+                    const iso = new Date(unix).toISOString().replace('.000Z', 'Z');
+                    return { type: 'date', value: iso };
+                }
+                case 0x4: { // data
+                    const [count, start] = readCountAndStart(offset, info);
+                    const b64 = uint8ToBase64(bytes.subarray(start, start + count));
+                    return { type: 'data', value: b64 };
+                }
+                case 0x5: { // ASCII string
+                    const [count, start] = readCountAndStart(offset, info);
+                    let s = '';
+                    for (let i = 0; i < count; i++) s += String.fromCharCode(bytes[start + i]);
+                    return { type: 'string', value: s };
+                }
+                case 0x6: { // UTF-16 BE string
+                    const [count, start] = readCountAndStart(offset, info);
+                    const u16 = new Uint16Array(count);
+                    for (let i = 0; i < count; i++) {
+                        u16[i] = (bytes[start + i * 2] << 8) | bytes[start + i * 2 + 1];
+                    }
+                    return { type: 'string', value: String.fromCharCode(...u16) };
+                }
+                case 0x8: { // UID (NSKeyedArchiver) — represent as {CF$UID: integer}
+                    const uid = readUintN(dv, offset + 1, info + 1);
+                    return { type: 'dict', value: [{ key: 'CF$UID', node: { type: 'integer', value: uid } }] };
+                }
+                case 0xa:   // array
+                case 0xb:   // ordered set (treat as array)
+                case 0xc: { // set (treat as array)
+                    const [count, start] = readCountAndStart(offset, info);
+                    const items = [];
+                    for (let i = 0; i < count; i++) {
+                        const ref = readUintN(dv, start + i * objectRefSize, objectRefSize);
+                        items.push(parseObject(ref));
+                    }
+                    return { type: 'array', value: items };
+                }
+                case 0xd: { // dict
+                    const [count, start] = readCountAndStart(offset, info);
+                    const pairs = [];
+                    for (let i = 0; i < count; i++) {
+                        const kRef = readUintN(dv, start + i * objectRefSize, objectRefSize);
+                        const vRef = readUintN(dv, start + (count + i) * objectRefSize, objectRefSize);
+                        const kNode = parseObject(kRef);
+                        const vNode = parseObject(vRef);
+                        const key = kNode.type === 'string' ? kNode.value : String(kNode.value);
+                        pairs.push({ key, node: vNode });
+                    }
+                    return { type: 'dict', value: pairs };
+                }
+                default:
+                    return { type: 'string', value: `<unsupported type 0x${objType.toString(16)}>` };
+            }
+        }
+
+        return parseObject(topObject);
+    }
+
+    // ─── Binary parser helpers ────────────────────────────────────────────────
+
+    function readUintN(dv, offset, size) {
+        let val = 0;
+        for (let i = 0; i < size; i++) val = val * 256 + dv.getUint8(offset + i);
+        return val;
+    }
+
+    function readSintN(dv, offset, size) {
+        if (size === 1) return dv.getInt8(offset);
+        if (size === 2) return dv.getInt16(offset, false);
+        if (size === 4) return dv.getInt32(offset, false);
+        if (size === 8) {
+            const hi = dv.getInt32(offset, false);
+            const lo = dv.getUint32(offset + 4, false);
+            return hi * 0x100000000 + lo;
+        }
+        return readUintN(dv, offset, size);
+    }
+
+    function readUint64(dv, offset) {
+        const hi = dv.getUint32(offset, false);
+        const lo = dv.getUint32(offset + 4, false);
+        return hi * 0x100000000 + lo;
+    }
+
+    function uint8ToBase64(bytes) {
+        let binary = '';
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        return btoa(binary);
+    }
+
+    function deepClone(node) {
+        if (node.type === 'dict') {
+            return { type: 'dict', value: node.value.map(p => ({ key: p.key, node: deepClone(p.node) })) };
+        }
+        if (node.type === 'array') {
+            return { type: 'array', value: node.value.map(deepClone) };
+        }
+        return { ...node };
     }
 
     // ─── Serialise back to XML plist ──────────────────────────────────────────
@@ -668,16 +858,22 @@
         hideMessages();
         const reader = new FileReader();
         reader.onload = (e) => {
-            const raw = e.target.result;
+            const buffer = e.target.result;
+            const bytes = new Uint8Array(buffer);
 
-            // Detect binary plist
-            if (typeof raw === 'string' && raw.startsWith('bplist')) {
-                showError('Binary plist files are not supported. Please convert to XML format first (e.g., using `plutil -convert xml1 file.plist` on macOS).');
-                return;
-            }
+            // Detect format from magic bytes
+            const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3],
+                                              bytes[4], bytes[5], bytes[6], bytes[7]);
+            const isBinary = magic.startsWith('bplist');
 
             try {
-                rootNode = parsePlistXML(raw);
+                if (isBinary) {
+                    rootNode = parseBinaryPlist(buffer);
+                    showInfo('Binary plist loaded. Editing and downloading as XML plist.');
+                } else {
+                    const text = new TextDecoder().decode(buffer);
+                    rootNode = parsePlistXML(text);
+                }
                 currentFilename = file.name;
                 document.getElementById('filename-label').textContent = file.name;
                 document.getElementById('editor-panel').classList.add('visible');
@@ -687,7 +883,7 @@
             }
         };
         reader.onerror = () => showError('Failed to read file.');
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     }
 
     // ─── Download ─────────────────────────────────────────────────────────────
@@ -736,6 +932,12 @@
 
     function showError(msg) {
         const el = document.getElementById('error-msg');
+        el.textContent = msg;
+        el.classList.add('visible');
+    }
+
+    function showInfo(msg) {
+        const el = document.getElementById('info-msg');
         el.textContent = msg;
         el.classList.add('visible');
     }
