@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plist Editor</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        h1 { margin-top: 0; font-size: 28px; }
+        p.subtitle { color: #666; margin-top: -8px; }
+
+        /* Drop zone */
+        #dropzone {
+            border: 2px dashed #aaa;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            background: #fff;
+            transition: border-color 0.2s, background 0.2s;
+            color: #666;
+        }
+        #dropzone:hover, #dropzone.drag-over {
+            border-color: #4a90e2;
+            background: #f0f7ff;
+        }
+        #dropzone strong { display: block; font-size: 16px; margin-bottom: 6px; color: #333; }
+        #fileInput { display: none; }
+
+        /* Error / info messages */
+        .msg {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-top: 14px;
+            display: none;
+        }
+        .msg.visible { display: block; }
+        .msg.error { background: #fef5f5; color: #c0392b; border: 1px solid #f5c6cb; }
+        .msg.info  { background: #eaf4fb; color: #1a5276; border: 1px solid #aed6f1; }
+
+        /* Editor panel */
+        #editor-panel {
+            display: none;
+            margin-top: 20px;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            overflow: hidden;
+        }
+        #editor-panel.visible { display: block; }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .panel-header .filename {
+            font-weight: 600;
+            font-size: 14px;
+            color: #555;
+            word-break: break-all;
+        }
+        .panel-header .actions { display: flex; gap: 8px; }
+
+        button {
+            background: #4a90e2;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+        button:hover { background: #357abd; }
+        button.secondary {
+            background: #fff;
+            color: #4a90e2;
+            border: 1px solid #4a90e2;
+        }
+        button.secondary:hover { background: #f0f7ff; }
+        button.danger { background: #e74c3c; }
+        button.danger:hover { background: #c0392b; }
+        button.success { background: #27ae60; }
+        button.success:hover { background: #1e8449; }
+
+        /* Tree */
+        #tree-container {
+            padding: 10px 4px;
+            overflow-x: auto;
+        }
+
+        .tree-node { margin: 0; padding: 0; }
+
+        .node-row {
+            display: flex;
+            align-items: center;
+            padding: 3px 6px;
+            border-radius: 4px;
+            gap: 4px;
+            min-height: 30px;
+        }
+        .node-row:hover { background: #f5f5f5; }
+
+        .indent { display: inline-block; width: 20px; flex-shrink: 0; }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            padding: 0 4px;
+            cursor: pointer;
+            color: #888;
+            font-size: 11px;
+            width: 18px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .toggle-btn:hover { color: #333; background: none; }
+        .toggle-placeholder { width: 18px; flex-shrink: 0; }
+
+        .node-key-wrap {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 120px;
+        }
+
+        .key-input {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1a5276;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            padding: 2px 4px;
+            background: transparent;
+            min-width: 80px;
+            max-width: 240px;
+        }
+        .key-input:focus {
+            outline: none;
+            border-color: #4a90e2;
+            background: #fff;
+        }
+
+        .index-label {
+            font-size: 12px;
+            color: #888;
+            font-style: italic;
+            min-width: 30px;
+        }
+
+        .colon { color: #aaa; font-size: 13px; }
+
+        .type-select {
+            font-size: 12px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 2px 4px;
+            background: #f9f9f9;
+            color: #555;
+            cursor: pointer;
+        }
+        .type-select:focus { outline: none; border-color: #4a90e2; }
+
+        .value-input {
+            font-size: 13px;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            padding: 2px 6px;
+            background: transparent;
+            flex: 1;
+            min-width: 80px;
+        }
+        .value-input:focus {
+            outline: none;
+            border-color: #4a90e2;
+            background: #fff;
+        }
+        .value-input.bool-val {
+            max-width: 80px;
+            cursor: pointer;
+        }
+
+        .container-label {
+            font-size: 12px;
+            color: #888;
+            font-style: italic;
+        }
+
+        .node-actions {
+            display: flex;
+            gap: 4px;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .node-btn {
+            background: none;
+            border: 1px solid #ddd;
+            color: #666;
+            padding: 1px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+        .node-btn:hover { background: #f0f0f0; color: #333; }
+        .node-btn.del:hover { background: #fef5f5; color: #e74c3c; border-color: #e74c3c; }
+
+        .children-wrap { padding-left: 20px; }
+
+        /* Add root controls */
+        .add-root-bar {
+            padding: 8px 16px 14px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .add-root-bar label { font-size: 13px; color: #666; }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            h1 { font-size: 22px; }
+            .panel-header { flex-direction: column; align-items: flex-start; }
+            .key-input { max-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Plist Editor</h1>
+    <p class="subtitle">Upload a plist file to view and edit its contents, then download the result.</p>
+
+    <div id="dropzone">
+        <strong>Drag &amp; drop a .plist file here</strong>
+        or click to select a file
+        <br><small style="margin-top:8px;display:block;color:#aaa">Supports XML plist files (.plist)</small>
+    </div>
+    <input type="file" id="fileInput" accept=".plist,text/xml,application/xml">
+
+    <div id="error-msg" class="msg error"></div>
+    <div id="info-msg" class="msg info"></div>
+
+    <div id="editor-panel">
+        <div class="panel-header">
+            <span class="filename" id="filename-label"></span>
+            <div class="actions">
+                <button class="secondary" id="load-another-btn">Load another file</button>
+                <button class="success" id="download-btn">Download edited plist</button>
+            </div>
+        </div>
+        <div id="tree-container"></div>
+    </div>
+
+    <script>
+    // ─── Plist data model ──────────────────────────────────────────────────────
+    // Each node: { type, value }
+    // type: 'string' | 'integer' | 'real' | 'boolean' | 'date' | 'data' | 'dict' | 'array'
+    // value for primitives: JS primitive
+    // value for dict: [{ key: string, node: Node }, ...]  (ordered)
+    // value for array: [Node, ...]
+
+    function parsePlistXML(xmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xmlText, 'application/xml');
+        const parseError = doc.querySelector('parsererror');
+        if (parseError) throw new Error('XML parse error: ' + parseError.textContent.split('\n')[0]);
+        const plist = doc.querySelector('plist');
+        if (!plist) throw new Error('No <plist> element found');
+        const root = firstValueElement(plist);
+        if (!root) throw new Error('Empty plist');
+        return parseElement(root);
+    }
+
+    function firstValueElement(parent) {
+        for (const child of parent.childNodes) {
+            if (child.nodeType === 1) return child; // Element
+        }
+        return null;
+    }
+
+    function parseElement(el) {
+        const tag = el.tagName.toLowerCase();
+        switch (tag) {
+            case 'string':  return { type: 'string',  value: el.textContent };
+            case 'integer': return { type: 'integer', value: parseInt(el.textContent, 10) };
+            case 'real':    return { type: 'real',    value: parseFloat(el.textContent) };
+            case 'true':    return { type: 'boolean', value: true };
+            case 'false':   return { type: 'boolean', value: false };
+            case 'date':    return { type: 'date',    value: el.textContent.trim() };
+            case 'data':    return { type: 'data',    value: el.textContent.trim() };
+            case 'dict': {
+                const children = [...el.childNodes].filter(n => n.nodeType === 1);
+                const pairs = [];
+                for (let i = 0; i < children.length; i += 2) {
+                    const keyEl = children[i];
+                    const valEl = children[i + 1];
+                    if (!keyEl || keyEl.tagName.toLowerCase() !== 'key') continue;
+                    if (!valEl) continue;
+                    pairs.push({ key: keyEl.textContent, node: parseElement(valEl) });
+                }
+                return { type: 'dict', value: pairs };
+            }
+            case 'array': {
+                const children = [...el.childNodes].filter(n => n.nodeType === 1);
+                return { type: 'array', value: children.map(parseElement) };
+            }
+            default:
+                return { type: 'string', value: el.textContent };
+        }
+    }
+
+    // ─── Serialise back to XML plist ──────────────────────────────────────────
+
+    function serializePlist(rootNode) {
+        const lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+            '<plist version="1.0">',
+            serializeNode(rootNode, 0),
+            '</plist>',
+        ];
+        return lines.join('\n') + '\n';
+    }
+
+    function indent(depth) { return '\t'.repeat(depth); }
+
+    function escapeXML(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function serializeNode(node, depth) {
+        const d = indent(depth);
+        switch (node.type) {
+            case 'string':  return `${d}<string>${escapeXML(node.value)}</string>`;
+            case 'integer': return `${d}<integer>${parseInt(node.value)||0}</integer>`;
+            case 'real': {
+                let v = parseFloat(node.value);
+                if (isNaN(v)) v = 0;
+                return `${d}<real>${v}</real>`;
+            }
+            case 'boolean': return node.value ? `${d}<true/>` : `${d}<false/>`;
+            case 'date':    return `${d}<date>${escapeXML(node.value)}</date>`;
+            case 'data':    return `${d}<data>${escapeXML(node.value)}</data>`;
+            case 'dict': {
+                if (!node.value.length) return `${d}<dict/>`;
+                const inner = node.value.map(({ key, node: child }) =>
+                    `${indent(depth+1)}<key>${escapeXML(key)}</key>\n${serializeNode(child, depth+1)}`
+                ).join('\n');
+                return `${d}<dict>\n${inner}\n${d}</dict>`;
+            }
+            case 'array': {
+                if (!node.value.length) return `${d}<array/>`;
+                const inner = node.value.map(child => serializeNode(child, depth+1)).join('\n');
+                return `${d}<array>\n${inner}\n${d}</array>`;
+            }
+            default: return `${d}<string>${escapeXML(String(node.value))}</string>`;
+        }
+    }
+
+    // ─── UI rendering ─────────────────────────────────────────────────────────
+
+    let rootNode = null;
+    let currentFilename = 'edited.plist';
+
+    function renderTree() {
+        const container = document.getElementById('tree-container');
+        container.innerHTML = '';
+        if (!rootNode) return;
+
+        // Show add-to-root bar only when root is dict/array
+        const wrap = document.createElement('div');
+        wrap.appendChild(buildNodeEl(rootNode, null, null, 0));
+
+        // Add-item bar for the root node if it's a container
+        if (rootNode.type === 'dict' || rootNode.type === 'array') {
+            wrap.appendChild(buildAddBar(rootNode));
+        }
+
+        container.appendChild(wrap);
+    }
+
+    // Build DOM for a single node (recursive)
+    // parent: the parent node (for deletion), parentKey: dict key or array index, depth: int
+    function buildNodeEl(node, parent, parentKey, depth) {
+        const outer = document.createElement('div');
+        outer.className = 'tree-node';
+
+        const row = document.createElement('div');
+        row.className = 'node-row';
+
+        // Indentation
+        for (let i = 0; i < depth; i++) {
+            const sp = document.createElement('span');
+            sp.className = 'indent';
+            row.appendChild(sp);
+        }
+
+        // Toggle button for containers
+        if (node.type === 'dict' || node.type === 'array') {
+            const toggle = document.createElement('button');
+            toggle.className = 'toggle-btn';
+            toggle.title = 'Collapse/expand';
+            toggle.textContent = '▾';
+            let collapsed = false;
+            toggle.addEventListener('click', () => {
+                collapsed = !collapsed;
+                childrenWrap.style.display = collapsed ? 'none' : '';
+                toggle.textContent = collapsed ? '▸' : '▾';
+            });
+            row.appendChild(toggle);
+        } else {
+            const ph = document.createElement('span');
+            ph.className = 'toggle-placeholder';
+            row.appendChild(ph);
+        }
+
+        // Key or index label
+        if (parent && parent.type === 'dict') {
+            const keyWrap = document.createElement('span');
+            keyWrap.className = 'node-key-wrap';
+            const keyInput = document.createElement('input');
+            keyInput.className = 'key-input';
+            keyInput.type = 'text';
+            keyInput.value = parentKey;
+            keyInput.title = 'Edit key name';
+            keyInput.addEventListener('change', () => {
+                const pair = parent.value.find(p => p.key === parentKey);
+                if (pair) {
+                    pair.key = keyInput.value;
+                    parentKey = keyInput.value;
+                }
+            });
+            keyWrap.appendChild(keyInput);
+            row.appendChild(keyWrap);
+
+            const colon = document.createElement('span');
+            colon.className = 'colon';
+            colon.textContent = ':';
+            row.appendChild(colon);
+        } else if (parent && parent.type === 'array') {
+            const lbl = document.createElement('span');
+            lbl.className = 'index-label';
+            lbl.textContent = `[${parentKey}]`;
+            row.appendChild(lbl);
+        }
+
+        // Type selector
+        const typeSelect = document.createElement('select');
+        typeSelect.className = 'type-select';
+        const types = ['string', 'integer', 'real', 'boolean', 'date', 'data', 'dict', 'array'];
+        types.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            if (t === node.type) opt.selected = true;
+            typeSelect.appendChild(opt);
+        });
+        typeSelect.addEventListener('change', () => {
+            const newType = typeSelect.value;
+            if (newType === node.type) return;
+            // Convert value
+            const oldNode = { ...node };
+            node.type = newType;
+            if (newType === 'dict') {
+                node.value = [];
+            } else if (newType === 'array') {
+                node.value = [];
+            } else if (newType === 'boolean') {
+                node.value = false;
+            } else if (newType === 'integer') {
+                node.value = parseInt(oldNode.value) || 0;
+            } else if (newType === 'real') {
+                node.value = parseFloat(oldNode.value) || 0.0;
+            } else {
+                node.value = String(oldNode.value !== undefined ? oldNode.value : '');
+            }
+            renderTree();
+        });
+        row.appendChild(typeSelect);
+
+        // Value editor
+        if (node.type === 'dict') {
+            const lbl = document.createElement('span');
+            lbl.className = 'container-label';
+            lbl.textContent = `{${node.value.length} ${node.value.length === 1 ? 'key' : 'keys'}}`;
+            row.appendChild(lbl);
+        } else if (node.type === 'array') {
+            const lbl = document.createElement('span');
+            lbl.className = 'container-label';
+            lbl.textContent = `[${node.value.length} ${node.value.length === 1 ? 'item' : 'items'}]`;
+            row.appendChild(lbl);
+        } else if (node.type === 'boolean') {
+            const sel = document.createElement('select');
+            sel.className = 'value-input bool-val';
+            ['true', 'false'].forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                if ((v === 'true') === node.value) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            sel.addEventListener('change', () => { node.value = sel.value === 'true'; });
+            row.appendChild(sel);
+        } else {
+            const valInput = document.createElement('input');
+            valInput.className = 'value-input';
+            valInput.type = node.type === 'integer' || node.type === 'real' ? 'text' : 'text';
+            valInput.value = node.value !== undefined ? String(node.value) : '';
+            valInput.placeholder = node.type;
+            valInput.addEventListener('input', () => {
+                if (node.type === 'integer') node.value = parseInt(valInput.value) || 0;
+                else if (node.type === 'real') node.value = parseFloat(valInput.value) || 0;
+                else node.value = valInput.value;
+            });
+            row.appendChild(valInput);
+        }
+
+        // Node actions (delete)
+        const actions = document.createElement('span');
+        actions.className = 'node-actions';
+
+        if (parent) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'node-btn del';
+            delBtn.textContent = '✕';
+            delBtn.title = 'Delete this item';
+            delBtn.addEventListener('click', () => {
+                if (parent.type === 'dict') {
+                    parent.value = parent.value.filter(p => p.key !== parentKey);
+                } else if (parent.type === 'array') {
+                    parent.value.splice(parentKey, 1);
+                }
+                renderTree();
+            });
+            actions.appendChild(delBtn);
+        }
+
+        row.appendChild(actions);
+        outer.appendChild(row);
+
+        // Children for containers
+        if (node.type === 'dict' || node.type === 'array') {
+            const childrenWrap = document.createElement('div');
+            childrenWrap.className = 'children-wrap';
+
+            if (node.type === 'dict') {
+                node.value.forEach(({ key, node: child }) => {
+                    childrenWrap.appendChild(buildNodeEl(child, node, key, depth + 1));
+                });
+            } else {
+                node.value.forEach((child, idx) => {
+                    childrenWrap.appendChild(buildNodeEl(child, node, idx, depth + 1));
+                });
+            }
+
+            // Add-item bar inside container (re-render for new items)
+            childrenWrap.appendChild(buildAddBar(node, depth + 1));
+
+            outer.appendChild(childrenWrap);
+
+            // Store reference for toggle
+            outer._childrenWrap = childrenWrap;
+        }
+
+        return outer;
+    }
+
+    function buildAddBar(node, depth) {
+        const bar = document.createElement('div');
+        bar.className = 'add-root-bar';
+
+        if (node.type === 'dict') {
+            const keyInput = document.createElement('input');
+            keyInput.type = 'text';
+            keyInput.placeholder = 'new key';
+            keyInput.style.cssText = 'font-size:13px;border:1px solid #ddd;border-radius:4px;padding:4px 8px;width:140px;';
+
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'type-select';
+            ['string', 'integer', 'real', 'boolean', 'date', 'data', 'dict', 'array'].forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                typeSelect.appendChild(opt);
+            });
+
+            const addBtn = document.createElement('button');
+            addBtn.textContent = '+ Add key';
+            addBtn.style.fontSize = '12px';
+            addBtn.addEventListener('click', () => {
+                let key = keyInput.value.trim() || 'NewKey';
+                // Avoid duplicate keys
+                let suffix = 1;
+                let candidate = key;
+                while (node.value.find(p => p.key === candidate)) {
+                    candidate = `${key}_${suffix++}`;
+                }
+                node.value.push({ key: candidate, node: defaultNode(typeSelect.value) });
+                keyInput.value = '';
+                renderTree();
+            });
+
+            bar.appendChild(keyInput);
+            bar.appendChild(typeSelect);
+            bar.appendChild(addBtn);
+        } else if (node.type === 'array') {
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'type-select';
+            ['string', 'integer', 'real', 'boolean', 'date', 'data', 'dict', 'array'].forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                typeSelect.appendChild(opt);
+            });
+
+            const addBtn = document.createElement('button');
+            addBtn.textContent = '+ Add item';
+            addBtn.style.fontSize = '12px';
+            addBtn.addEventListener('click', () => {
+                node.value.push(defaultNode(typeSelect.value));
+                renderTree();
+            });
+
+            bar.appendChild(typeSelect);
+            bar.appendChild(addBtn);
+        }
+
+        return bar;
+    }
+
+    function defaultNode(type) {
+        switch (type) {
+            case 'string':  return { type: 'string',  value: '' };
+            case 'integer': return { type: 'integer', value: 0 };
+            case 'real':    return { type: 'real',    value: 0.0 };
+            case 'boolean': return { type: 'boolean', value: false };
+            case 'date':    return { type: 'date',    value: new Date().toISOString().replace('.000', '') };
+            case 'data':    return { type: 'data',    value: '' };
+            case 'dict':    return { type: 'dict',    value: [] };
+            case 'array':   return { type: 'array',   value: [] };
+            default:        return { type: 'string',  value: '' };
+        }
+    }
+
+    // ─── File loading ─────────────────────────────────────────────────────────
+
+    function loadFile(file) {
+        hideMessages();
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const raw = e.target.result;
+
+            // Detect binary plist
+            if (typeof raw === 'string' && raw.startsWith('bplist')) {
+                showError('Binary plist files are not supported. Please convert to XML format first (e.g., using `plutil -convert xml1 file.plist` on macOS).');
+                return;
+            }
+
+            try {
+                rootNode = parsePlistXML(raw);
+                currentFilename = file.name;
+                document.getElementById('filename-label').textContent = file.name;
+                document.getElementById('editor-panel').classList.add('visible');
+                renderTree();
+            } catch (err) {
+                showError('Failed to parse plist: ' + err.message);
+            }
+        };
+        reader.onerror = () => showError('Failed to read file.');
+        reader.readAsText(file);
+    }
+
+    // ─── Download ─────────────────────────────────────────────────────────────
+
+    document.getElementById('download-btn').addEventListener('click', () => {
+        if (!rootNode) return;
+        const xml = serializePlist(rootNode);
+        const blob = new Blob([xml], { type: 'application/xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = currentFilename;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('load-another-btn').addEventListener('click', () => {
+        document.getElementById('fileInput').click();
+    });
+
+    // ─── Drag & drop / file input ─────────────────────────────────────────────
+
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) loadFile(file);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) loadFile(file);
+    });
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    function showError(msg) {
+        const el = document.getElementById('error-msg');
+        el.textContent = msg;
+        el.classList.add('visible');
+    }
+
+    function hideMessages() {
+        document.getElementById('error-msg').classList.remove('visible');
+        document.getElementById('info-msg').classList.remove('visible');
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+Upload an XML plist file to view and interactively edit its structure. The editor displays the full property list as an expandable tree where you can rename dict keys, change value types, edit values inline, and add or remove entries at any level. When finished, download the modified file as a valid XML plist.
