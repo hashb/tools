@@ -65,16 +65,42 @@ for easy use elsewhere.
     <title>Query String Stripper</title>
     <style>
         * { box-sizing: border-box; }
+
+        :root {
+            --bg: #fdfdfd;
+            --bg2: #f8f8f8;
+            --text: #333;
+            --text-muted: #888;
+            --accent: #06c;
+            --border: #ddd;
+            --focus-bg: #f0f8ff;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #212121;
+                --bg2: #252525;
+                --text: #ddd;
+                --text-muted: #888;
+                --accent: #8cc2dd;
+                --border: #444;
+                --focus-bg: #555;
+            }
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
+            font-family: Verdana, sans-serif;
+            max-width: 720px;
             margin: 0 auto;
             padding: 20px;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            overflow-y: scroll;
         }
         /* Mobile-friendly media query */
         @media (max-width: 600px) {
             body { padding: 10px; }
-            h1 { font-size: 24px; }
+            h1 { font-size: 20px; }
         }
     </style>
 </head>
@@ -363,10 +389,10 @@ Pattern used in `json-string-extractor.html`:
 
 <style>
 .error {
-    color: #e74c3c;
-    padding: 12px;
-    background: #fef5f5;
-    border-radius: 4px;
+    color: #c0392b;
+    padding: 10px;
+    background: var(--bg2);
+    border-left: 3px solid #c0392b;
     margin-top: 10px;
     display: none;
 }
@@ -564,171 +590,181 @@ Based on patterns above, here's a template structure:
         * {
             box-sizing: border-box;
         }
-        
+
+        :root {
+            --bg: #fdfdfd;
+            --bg2: #f8f8f8;
+            --text: #333;
+            --text-muted: #888;
+            --accent: #06c;
+            --border: #ddd;
+            --focus-bg: #f0f8ff;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #212121;
+                --bg2: #252525;
+                --text: #ddd;
+                --text-muted: #888;
+                --accent: #8cc2dd;
+                --border: #444;
+                --focus-bg: #555;
+            }
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, 
-                         Helvetica, Arial, sans-serif;
-            max-width: 900px;
+            font-family: Verdana, sans-serif;
+            max-width: 720px;
             margin: 0 auto;
             padding: 20px;
             line-height: 1.6;
-            background-color: #f5f5f5;
+            background: var(--bg);
+            color: var(--text);
+            overflow-y: scroll;
         }
-        
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
+
         h1 {
             margin-top: 0;
-            font-size: 28px;
-            color: #333;
+            font-size: 24px;
         }
-        
+
         textarea {
             width: 100%;
             min-height: 150px;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            font-family: monaco, monospace;
             font-size: 14px;
             resize: vertical;
+            background: var(--bg2);
+            color: var(--text);
         }
-        
+
         textarea:focus {
             outline: none;
-            border-color: #4a90e2;
+            border-color: var(--accent);
         }
-        
+
         button {
-            background-color: #4a90e2;
-            color: white;
+            background: var(--accent);
+            color: var(--bg);
             border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
+            padding: 8px 16px;
+            border-radius: 0.25em;
             cursor: pointer;
             font-size: 14px;
+            font-family: Verdana, sans-serif;
             margin-top: 10px;
         }
-        
+
         button:hover {
-            background-color: #357abd;
+            opacity: 0.85;
         }
-        
+
         button:disabled {
-            background-color: #ccc;
+            opacity: 0.4;
             cursor: not-allowed;
         }
-        
+
         .results {
-            margin-top: 30px;
+            margin-top: 24px;
             display: none;
         }
-        
+
         .results.visible {
             display: block;
         }
-        
+
         .stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin: 20px 0;
+            gap: 12px;
+            margin: 16px 0;
         }
-        
+
         .stat-item {
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 4px;
-            border-left: 4px solid #4a90e2;
-        }
-        
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-        
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #333;
-        }
-        
-        .error {
-            color: #e74c3c;
+            background: var(--bg2);
             padding: 12px;
-            background: #fef5f5;
-            border-radius: 4px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #c0392b;
+            padding: 10px;
+            border-left: 3px solid #c0392b;
+            background: var(--bg2);
             display: none;
             margin-top: 10px;
         }
-        
+
         .error.visible {
             display: block;
         }
-        
+
         @media (max-width: 600px) {
             body {
                 padding: 10px;
             }
-            
-            .container {
-                padding: 15px;
-            }
-            
+
             .stats {
                 grid-template-columns: 1fr;
             }
-            
+
             h1 {
-                font-size: 24px;
+                font-size: 20px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Sloccount</h1>
-        <p>Count lines of code in multiple files or paste source code</p>
+    <h1>Sloccount</h1>
+    <p>Count lines of code in multiple files or paste source code</p>
         
-        <textarea id="codeInput" placeholder="Paste your source code here or drag & drop files..."></textarea>
-        
-        <button id="processButton">Count Lines</button>
-        
-        <div id="error" class="error"></div>
-        
-        <div id="results" class="results">
-            <h2>Results</h2>
-            <div class="stats">
-                <div class="stat-item">
-                    <div class="stat-label">Total Lines</div>
-                    <div class="stat-value" id="totalLines">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Code Lines</div>
-                    <div class="stat-value" id="codeLines">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Comment Lines</div>
-                    <div class="stat-value" id="commentLines">0</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Blank Lines</div>
-                    <div class="stat-value" id="blankLines">0</div>
-                </div>
+    <textarea id="codeInput" placeholder="Paste your source code here or drag & drop files..."></textarea>
+
+    <button id="processButton">Count Lines</button>
+
+    <div id="error" class="error"></div>
+
+    <div id="results" class="results">
+        <h2>Results</h2>
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-label">Total Lines</div>
+                <div class="stat-value" id="totalLines">0</div>
             </div>
-            
-            <h3>Breakdown by File</h3>
-            <div id="fileStats"></div>
-            
-            <button id="copyButton">Copy Results</button>
+            <div class="stat-item">
+                <div class="stat-label">Code Lines</div>
+                <div class="stat-value" id="codeLines">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Comment Lines</div>
+                <div class="stat-value" id="commentLines">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Blank Lines</div>
+                <div class="stat-value" id="blankLines">0</div>
+            </div>
         </div>
+
+        <h3>Breakdown by File</h3>
+        <div id="fileStats"></div>
+
+        <button id="copyButton">Copy Results</button>
     </div>
     
     <script>
