@@ -10,12 +10,47 @@ with embedded JSON + client-side real-time search.
 import json
 import pathlib
 import re
+import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).parent
 
 EXCLUDE = {"index.html", "404.html"}
+
+GITHUB_REPO = "hashb/tools"
+
+
+def get_git_info() -> tuple[str, str]:
+    """Return (short_commit, full_commit). Falls back to empty strings."""
+    try:
+        full = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip()
+        short = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, text=True
+        ).strip()
+        return short, full
+    except Exception:
+        return "", ""
+
+
+def render_footer(year: int, build_time: str, short_commit: str, full_commit: str) -> str:
+    build_line = ""
+    if short_commit:
+        build_line = (
+            f'<br>built on {build_time} using commit '
+            f'<a href="https://github.com/{GITHUB_REPO}/commit/{full_commit}">'
+            f'{short_commit}</a>'
+        )
+    return f"""\
+<small>
+  <footer id="footer">
+    <p class="copyright">Copyright &copy; <a href="https://chenna.me">Chenna Kautilya</a>, 2011 - {year}.
+    <noscript>hello stranger with no javascript ;)</noscript>{build_line}
+    </p>
+  </footer>
+</small>"""
 
 
 def extract_title(html_path: pathlib.Path) -> str:
@@ -203,11 +238,7 @@ INDEX_TEMPLATE = """\
 <ul id="tool-list"></ul>
 <p id="no-results">No tools match your search.</p>
 
-<footer id="footer">
-  <p class="copyright">Copyright &copy; <a href="https://chenna.me">Chenna Kautilya</a>, 2011 - {year}.
-  <noscript>hello stranger with no javascript ;)</noscript>
-  </p>
-</footer>
+{footer}
 
 <script>
 const TOOLS = {tools_json};
@@ -256,18 +287,94 @@ render(TOOLS);
 """
 
 
+PAGE_404_TEMPLATE = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 - Page Not Found | tools.chenna.me</title>
+  <style>
+    :root {{
+      --c-bg:        #fdfdfd;
+      --c-text:      #333;
+      --c-link:      #06c;
+      --c-muted:     #666;
+      --c-border:    #ddd;
+    }}
+    @media (prefers-color-scheme: dark) {{
+      :root {{
+        --c-bg:       #212121;
+        --c-text:     #ddd;
+        --c-link:     #8cc2dd;
+        --c-muted:    #999;
+        --c-border:   #444;
+      }}
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      font-family: Verdana, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px;
+      background: var(--c-bg);
+      color: var(--c-text);
+    }}
+    a {{ color: var(--c-link); text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+    header {{
+      border-bottom: 1px solid var(--c-border);
+      margin-bottom: 1.5em;
+      padding-bottom: 0.75em;
+    }}
+    header h1 {{ margin: 0 0 0.2em; font-size: 1.5em; }}
+    header p {{ margin: 0; font-size: 0.875em; color: var(--c-muted); }}
+    .error-container {{ text-align: center; padding: 3em 0; }}
+    .error-code {{ font-size: 6em; font-weight: bold; margin: 0 0 0.2em; color: var(--c-muted); line-height: 1; }}
+    .error-message {{ font-size: 1.2em; margin-bottom: 1.5em; }}
+    footer {{ border-top: 1px solid var(--c-border); margin-top: 2em; padding-top: 0.75em; font-size: 0.8em; color: var(--c-muted); }}
+    footer a {{ color: var(--c-muted); }}
+    footer a:hover {{ color: var(--c-link); }}
+  </style>
+</head>
+<body>
+<header>
+  <h1><a href="/">tools.chenna.me</a></h1>
+  <p>Assorted useful tools, almost entirely generated using LLMs</p>
+</header>
+<div class="error-container">
+  <p class="error-code">404</p>
+  <p class="error-message"><strong>Page not found :(</strong></p>
+  <p>The requested page could not be found. <a href="/">Back to tools</a></p>
+</div>
+{footer}
+</body>
+</html>
+"""
+
+
 def build():
+    now = datetime.now(timezone.utc)
+    build_time = now.strftime("%Y-%m-%d %H:%M UTC")
+    year = now.year
+    short_commit, full_commit = get_git_info()
+    footer = render_footer(year, build_time, short_commit, full_commit)
+
     tools = gather_tools()
     if not tools:
         print("No tools found — nothing to do.", file=sys.stderr)
         return
 
     tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
-    html = INDEX_TEMPLATE.format(tools_json=tools_json, year=datetime.now().year)
+    index_html = INDEX_TEMPLATE.format(tools_json=tools_json, footer=footer)
+    (ROOT / "index.html").write_text(index_html, encoding="utf-8")
+    print(f"Wrote index.html with {len(tools)} tool(s).")
 
-    out = ROOT / "index.html"
-    out.write_text(html, encoding="utf-8")
-    print(f"Wrote {out} with {len(tools)} tool(s).")
+    page404_html = PAGE_404_TEMPLATE.format(footer=footer)
+    (ROOT / "404.html").write_text(page404_html, encoding="utf-8")
+    print("Wrote 404.html.")
 
 
 if __name__ == "__main__":
