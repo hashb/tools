@@ -177,6 +177,17 @@ INDEX_TEMPLATE = """\
       font-size: 0.9em;
       margin-top: 1em;
     }}
+
+    footer {{
+      border-top: 1px solid var(--c-border);
+      margin-top: 2em;
+      padding-top: 0.75em;
+      font-size: 0.8em;
+      color: var(--c-muted);
+    }}
+
+    footer a {{ color: var(--c-muted); }}
+    footer a:hover {{ color: var(--c-link); }}
   </style>
 </head>
 <body>
@@ -190,6 +201,10 @@ INDEX_TEMPLATE = """\
 <div id="count"></div>
 <ul id="tool-list"></ul>
 <p id="no-results">No tools match your search.</p>
+
+<footer>
+  <p>Copyright &copy; <a href="https://chenna.me">Chenna Kautilya</a>, 2025.</p>
+</footer>
 
 <script>
 const TOOLS = {tools_json};
