@@ -139,9 +139,20 @@
 <ul id="tool-list"></ul>
 <p id="no-results">No tools match your search.</p>
 
-<footer>
-  <p>Copyright &copy; <a href="https://chenna.me">Chenna Kautilya</a>, 2025.</p>
-</footer>
+  <small>
+    <footer id="footer">
+      <p class="copyright">Copyright &copy; <a href="https://chenna.me">Chenna Kautilya</a>, 2011 - {{ site.time | date: '%Y' }}. Powered by <a
+          href="http://jekyllrb.com">Jekyll</a>.
+      <noscript>
+        hello stranger with no javascript ;)
+      </noscript>
+      {% if site.data.build %}
+      <br>built on {{ site.data.build.time }} using commit <a href="https://github.com/hashb/chenna.me/commit/{{ site.data.build.commit }}">{{ site.data.build.commit }}</a>
+      {% endif %}
+      </p>
+    </footer>
+  </small>
+
 
 <script>
 const TOOLS = [
