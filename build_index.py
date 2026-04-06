@@ -68,157 +68,145 @@ INDEX_TEMPLATE = """\
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>tools.chenna.me</title>
   <style>
-    *, *::before, *::after {{ box-sizing: border-box; }}
-
-    body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                   Helvetica, Arial, sans-serif;
-      margin: 0;
-      background: #f7f7f8;
-      color: #1a1a1a;
+    :root {{
+      --c-bg:        #fdfdfd;
+      --c-bg2:       #f8f8f8;
+      --c-text:      #333;
+      --c-link:      #06c;
+      --c-muted:     #666;
+      --c-border:    #ddd;
+      --c-focus-bg:  #f0f8ff;
+    }}
+    @media (prefers-color-scheme: dark) {{
+      :root {{
+        --c-bg:       #212121;
+        --c-bg2:      #252525;
+        --c-text:     #ddd;
+        --c-link:     #8cc2dd;
+        --c-muted:    #999;
+        --c-border:   #444;
+        --c-focus-bg: #2a2a2a;
+      }}
     }}
 
+    * {{ box-sizing: border-box; }}
+
+    body {{
+      font-family: Verdana, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px;
+      background: var(--c-bg);
+      color: var(--c-text);
+    }}
+
+    a {{ color: var(--c-link); text-decoration: none; }}
+    a:hover {{ text-decoration: underline; }}
+
     header {{
-      background: linear-gradient(135deg, #6b3fa0 0%, #8b5cf6 100%);
-      color: #fff;
-      padding: 32px 24px 28px;
-      text-align: center;
+      border-bottom: 1px solid var(--c-border);
+      margin-bottom: 1.5em;
+      padding-bottom: 0.75em;
     }}
 
     header h1 {{
-      margin: 0 0 6px;
-      font-size: clamp(22px, 4vw, 36px);
-      font-weight: 700;
-      letter-spacing: -0.5px;
+      margin: 0 0 0.2em;
+      font-size: 1.5em;
     }}
 
     header p {{
       margin: 0;
-      opacity: 0.85;
-      font-size: 15px;
-    }}
-
-    .search-wrap {{
-      max-width: 680px;
-      margin: -20px auto 0;
-      padding: 0 16px;
-      position: relative;
-      z-index: 1;
+      font-size: 0.875em;
+      color: var(--c-muted);
     }}
 
     #search {{
       width: 100%;
-      padding: 14px 20px 14px 44px;
-      font-size: 16px;
-      border: none;
-      border-radius: 10px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-      outline: none;
-      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") 14px center / 18px no-repeat;
+      padding: 0.4em 0.6em;
+      font-size: 1em;
+      font-family: inherit;
+      border: 1px solid var(--c-border);
+      border-radius: 0.25em;
+      background: var(--c-bg);
+      color: var(--c-text);
+      margin-bottom: 1em;
     }}
 
     #search:focus {{
-      box-shadow: 0 4px 20px rgba(107,63,160,0.25);
-    }}
-
-    main {{
-      max-width: 900px;
-      margin: 32px auto;
-      padding: 0 16px 48px;
+      outline: none;
+      border-color: var(--c-link);
+      background: var(--c-focus-bg);
     }}
 
     #count {{
-      font-size: 13px;
-      color: #666;
-      margin-bottom: 16px;
+      font-size: 0.8em;
+      color: var(--c-muted);
+      margin-bottom: 1em;
     }}
 
-    .grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 14px;
+    ul#tool-list {{
+      list-style: none;
+      margin: 0;
+      padding: 0;
     }}
 
-    .card {{
-      background: #fff;
-      border-radius: 10px;
-      padding: 18px 20px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-      text-decoration: none;
-      color: inherit;
-      transition: box-shadow 0.15s, transform 0.15s;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+    ul#tool-list li {{
+      padding: 0.6em 0;
+      border-bottom: 1px solid var(--c-border);
     }}
 
-    .card:hover {{
-      box-shadow: 0 4px 16px rgba(107,63,160,0.18);
-      transform: translateY(-2px);
+    ul#tool-list li:last-child {{
+      border-bottom: none;
     }}
 
-    .card-title {{
-      font-weight: 600;
-      font-size: 15px;
-      color: #6b3fa0;
+    .tool-title {{
+      font-weight: bold;
     }}
 
-    .card-desc {{
-      font-size: 13px;
-      color: #555;
-      line-height: 1.5;
-      flex: 1;
+    .tool-desc {{
+      font-size: 0.85em;
+      color: var(--c-muted);
+      margin: 0.15em 0 0;
     }}
 
     #no-results {{
       display: none;
-      text-align: center;
-      color: #888;
-      margin-top: 60px;
-      font-size: 15px;
-    }}
-
-    @media (max-width: 480px) {{
-      header {{ padding: 24px 16px 22px; }}
-      .grid {{ grid-template-columns: 1fr; }}
+      color: var(--c-muted);
+      font-size: 0.9em;
+      margin-top: 1em;
     }}
   </style>
 </head>
 <body>
 
 <header>
-  <h1>tools.chenna.me</h1>
+  <h1><a href="/">tools.chenna.me</a></h1>
   <p>Assorted useful tools, almost entirely generated using LLMs</p>
 </header>
 
-<div class="search-wrap">
-  <input id="search" type="search" placeholder="Search tools&hellip;" autofocus autocomplete="off">
-</div>
-
-<main>
-  <div id="count"></div>
-  <div class="grid" id="grid"></div>
-  <p id="no-results">No tools match your search.</p>
-</main>
+<input id="search" type="search" placeholder="Search tools&hellip;" autofocus autocomplete="off">
+<div id="count"></div>
+<ul id="tool-list"></ul>
+<p id="no-results">No tools match your search.</p>
 
 <script>
 const TOOLS = {tools_json};
 
-const grid = document.getElementById('grid');
+const list = document.getElementById('tool-list');
 const countEl = document.getElementById('count');
 const noResults = document.getElementById('no-results');
 const searchInput = document.getElementById('search');
 
 function render(tools) {{
-  grid.innerHTML = '';
+  list.innerHTML = '';
   tools.forEach(t => {{
-    const a = document.createElement('a');
-    a.className = 'card';
-    a.href = t.url;
-    a.innerHTML =
-      '<span class="card-title">' + esc(t.title) + '</span>' +
-      (t.description ? '<span class="card-desc">' + esc(t.description) + '</span>' : '');
-    grid.appendChild(a);
+    const li = document.createElement('li');
+    li.innerHTML =
+      '<div class="tool-title"><a href="' + esc(t.url) + '">' + esc(t.title) + '</a></div>' +
+      (t.description ? '<p class="tool-desc">' + esc(t.description) + '</p>' : '');
+    list.appendChild(li);
   }});
   const n = tools.length;
   countEl.textContent = n === TOOLS.length
