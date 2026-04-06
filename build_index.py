@@ -11,10 +11,11 @@ import json
 import pathlib
 import re
 import sys
+from datetime import datetime
 
 ROOT = pathlib.Path(__file__).parent
 
-EXCLUDE = {"index.html"}
+EXCLUDE = {"index.html", "404.html"}
 
 
 def extract_title(html_path: pathlib.Path) -> str:
@@ -202,8 +203,10 @@ INDEX_TEMPLATE = """\
 <ul id="tool-list"></ul>
 <p id="no-results">No tools match your search.</p>
 
-<footer>
-  <p>Copyright &copy; <a href="https://chenna.me">Chenna Kautilya</a>, 2025.</p>
+<footer id="footer">
+  <p class="copyright">Copyright &copy; <a href="https://chenna.me">Chenna Kautilya</a>, 2011 - {year}.
+  <noscript>hello stranger with no javascript ;)</noscript>
+  </p>
 </footer>
 
 <script>
@@ -260,7 +263,7 @@ def build():
         return
 
     tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
-    html = INDEX_TEMPLATE.format(tools_json=tools_json)
+    html = INDEX_TEMPLATE.format(tools_json=tools_json, year=datetime.now().year)
 
     out = ROOT / "index.html"
     out.write_text(html, encoding="utf-8")
