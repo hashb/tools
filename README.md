@@ -6,6 +6,7 @@ Live at **https://tools.chenna.me**
 
 ## Tools
 
+- [Ghost Song Save Editor](ghostsong-save-editor.html) — Safely edit nanogel, health, stats and other values in a Ghost Song `SaveData` file.
 - [Plist Editor](plist-editor.html) — Upload an XML plist file to view and interactively edit its structure as an expandable tree.
 
 ## Building the index

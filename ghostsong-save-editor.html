@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Song Save Editor</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        :root {
+            --bg: #fdfdfd;
+            --bg2: #f8f8f8;
+            --text: #333;
+            --text-muted: #888;
+            --accent: #06c;
+            --border: #ddd;
+            --focus-bg: #f0f8ff;
+            --ok: #27ae60;
+            --err: #c0392b;
+            --changed-bg: #fff6d6;
+            --warn: #b7791f;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #212121;
+                --bg2: #252525;
+                --text: #ddd;
+                --text-muted: #888;
+                --accent: #8cc2dd;
+                --border: #444;
+                --focus-bg: #555;
+                --ok: #5fc98b;
+                --err: #e57368;
+                --changed-bg: #3d3520;
+                --warn: #e0b45a;
+            }
+        }
+
+        body {
+            font-family: Verdana, sans-serif;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 20px;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        h1 { margin-top: 0; font-size: 24px; }
+        h2 { font-size: 17px; margin: 0 0 10px; }
+        h3 { font-size: 13px; margin: 14px 0 6px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        p.subtitle { color: var(--text-muted); margin-top: -8px; }
+        code { font-family: monaco, monospace; font-size: 12px; }
+
+        /* Drop zone */
+        #dropzone {
+            border: 1px dashed var(--border);
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            background: var(--bg2);
+            transition: border-color 0.2s, background 0.2s;
+            color: var(--text-muted);
+        }
+        #dropzone:hover, #dropzone.drag-over {
+            border-color: var(--accent);
+            background: var(--focus-bg);
+        }
+        #dropzone strong { display: block; font-size: 15px; margin-bottom: 6px; color: var(--text); }
+        #dropzone small { display: block; margin-top: 8px; }
+        #fileInput { display: none; }
+
+        /* Messages */
+        .msg {
+            padding: 10px 14px;
+            margin-top: 14px;
+            display: none;
+            border-left: 3px solid var(--border);
+            background: var(--bg2);
+        }
+        .msg.visible { display: block; }
+        .msg.error { color: var(--err); border-left-color: var(--err); }
+        .msg.info  { color: var(--accent); border-left-color: var(--accent); }
+        .msg.ok    { color: var(--ok); border-left-color: var(--ok); }
+
+        /* Panels */
+        .panel {
+            margin-top: 20px;
+            border: 1px solid var(--border);
+            display: none;
+        }
+        .panel.visible { display: block; }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .panel-header .filename { font-weight: 600; font-size: 13px; color: var(--text-muted); word-break: break-all; }
+        .panel-body { padding: 14px; }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+        button {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 6px 14px;
+            border-radius: 0.25em;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: Verdana, sans-serif;
+            transition: opacity 0.15s;
+        }
+        button:hover { opacity: 0.85; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+        button.secondary:hover { background: var(--focus-bg); opacity: 1; }
+        button.success { background: var(--ok); }
+        button.link { background: none; color: var(--accent); padding: 0 4px; font-size: 12px; }
+
+        select, input[type=text], input[type=search] {
+            font-size: 13px;
+            font-family: monaco, monospace;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 3px 6px;
+            background: var(--bg);
+            color: var(--text);
+        }
+        input:focus, select:focus { outline: none; border-color: var(--accent); background: var(--bg2); }
+        input.changed, select.changed { background: var(--changed-bg); border-color: var(--warn); }
+        input.invalid { border-color: var(--err); }
+        input[readonly] { color: var(--text-muted); border-style: dashed; }
+
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .badge.ok { color: var(--ok); border-color: var(--ok); }
+        .badge.err { color: var(--err); border-color: var(--err); }
+        .badge.warn { color: var(--warn); border-color: var(--warn); }
+
+        /* Quick edit grid */
+        .quick-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 8px 16px;
+        }
+        .field { display: flex; flex-direction: column; gap: 2px; }
+        .field label { font-size: 13px; }
+        .field .key { font-size: 11px; color: var(--text-muted); font-family: monaco, monospace; }
+        .field input, .field select { width: 100%; }
+        .field .hint { font-size: 11px; color: var(--text-muted); min-height: 1em; }
+        .field .hint.err { color: var(--err); }
+
+        /* All values tree */
+        #filter { width: 100%; margin-bottom: 10px; padding: 6px 8px; }
+        .tree-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 4px;
+            min-height: 30px;
+            border-bottom: 1px solid var(--bg2);
+            flex-wrap: wrap;
+        }
+        .tree-row:hover { background: var(--bg2); }
+        .tree-row .name { font-family: monaco, monospace; font-size: 13px; color: var(--accent); min-width: 200px; word-break: break-all; }
+        .tree-row .idx { font-family: monaco, monospace; font-size: 12px; color: var(--text-muted); min-width: 60px; }
+        .tree-row .type { font-size: 11px; color: var(--text-muted); min-width: 60px; }
+        .tree-row input[type=text] { flex: 1; min-width: 120px; max-width: 320px; }
+        .tree-row .err-text { font-size: 11px; color: var(--err); }
+        details > summary { cursor: pointer; list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        details > summary .caret { display: inline-block; width: 12px; color: var(--text-muted); font-size: 11px; }
+        details[open] > summary .caret { transform: rotate(90deg); }
+        .children { padding-left: 22px; border-left: 1px solid var(--border); margin-left: 9px; }
+        .muted { color: var(--text-muted); font-size: 12px; }
+
+        /* Changes */
+        #changes-list { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+        #changes-list li { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--bg2); flex-wrap: wrap; }
+        #changes-list .path { font-family: monaco, monospace; flex: 1; min-width: 200px; word-break: break-all; }
+        #changes-list .from { color: var(--text-muted); text-decoration: line-through; font-family: monaco, monospace; }
+        #changes-list .to { font-family: monaco, monospace; font-weight: 600; }
+
+        #save-bar {
+            position: sticky;
+            bottom: 0;
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+            padding: 10px 0;
+            margin-top: 20px;
+            display: none;
+        }
+        #save-bar.visible { display: block; }
+        #save-bar .count { font-size: 13px; color: var(--text-muted); margin-right: auto; }
+
+        ul.tips { font-size: 13px; padding-left: 20px; margin: 0; }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            h1 { font-size: 20px; }
+            .panel-header { flex-direction: column; align-items: flex-start; }
+            .tree-row .name { min-width: 0; flex: 1 1 calc(100% - 24px); }
+            #dropzone { padding: 24px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Ghost Song Save Editor</h1>
+    <p class="subtitle">Edit nanogel, health, stats and every other value in a Ghost Song <code>SaveData</code> file. Everything runs in your browser; the file is never uploaded.</p>
+
+    <div id="dropzone">
+        <strong>Drag &amp; drop your SaveData file here</strong>
+        or click to select a file
+        <small>.NET BinaryFormatter save files, as written by Ghost Song on Steam Deck and PC</small>
+    </div>
+    <input type="file" id="fileInput">
+
+    <div id="error-msg" class="msg error"></div>
+    <div id="status-msg" class="msg"></div>
+
+    <div id="quick-panel" class="panel">
+        <div class="panel-header">
+            <span class="filename" id="filename-label"></span>
+            <div class="actions">
+                <label for="slot-select" class="muted">Save slot</label>
+                <select id="slot-select"></select>
+                <button class="secondary" id="load-another-btn">Load another file</button>
+            </div>
+        </div>
+        <div class="panel-body" id="quick-body"></div>
+    </div>
+
+    <div id="all-panel" class="panel">
+        <div class="panel-header">
+            <h2 style="margin:0">All values</h2>
+            <span class="muted" id="all-count"></span>
+        </div>
+        <div class="panel-body">
+            <input type="search" id="filter" placeholder="Filter by key name, e.g. stats, progress, inventory&hellip;" autocomplete="off">
+            <div id="tree"></div>
+        </div>
+    </div>
+
+    <div id="changes-panel" class="panel">
+        <div class="panel-header">
+            <h2 style="margin:0">Pending changes</h2>
+            <button class="secondary" id="reset-all-btn">Revert all</button>
+        </div>
+        <div class="panel-body">
+            <ul id="changes-list"></ul>
+        </div>
+    </div>
+
+    <div id="tips" class="panel">
+        <div class="panel-header"><h2 style="margin:0">Before you replace the file</h2></div>
+        <div class="panel-body">
+        <ul class="tips">
+            <li>Quit the game before replacing the file, and keep the backup somewhere safe.</li>
+            <li>If Steam reports a cloud sync conflict, choose the local files so the edited save isn't overwritten.</li>
+            <li>The game may recalculate some values (such as max health) from your stats when it loads. If an edit doesn't stick, change the stat it comes from.</li>
+        </ul>
+        </div>
+    </div>
+
+    <div id="save-bar">
+        <div class="actions">
+            <span class="count" id="save-count">No changes yet</span>
+            <button class="secondary" id="backup-btn">Download original (backup)</button>
+            <button class="success" id="download-btn" disabled>Download edited save</button>
+        </div>
+    </div>
+
+    <script>
+    // ─── MS-NRBF codec (.NET BinaryFormatter) ─────────────────────────────────
+    // Spec: https://learn.microsoft.com/openspecs/windows_protocols/ms-nrbf
+    // Every record is parsed into a plain object and can be written back out.
+    // Primitive values keep their original bytes (`raw`), so anything you don't
+    // edit is re-emitted exactly as it was read.
+
+    const NRBF = (() => {
+        const RT = {
+            Header: 0, ClassWithId: 1, SystemClassWithMembers: 2, ClassWithMembers: 3,
+            SystemClassWithMembersAndTypes: 4, ClassWithMembersAndTypes: 5,
+            BinaryObjectString: 6, BinaryArray: 7, MemberPrimitiveTyped: 8,
+            MemberReference: 9, ObjectNull: 10, MessageEnd: 11, BinaryLibrary: 12,
+            ObjectNullMultiple256: 13, ObjectNullMultiple: 14,
+            ArraySinglePrimitive: 15, ArraySingleObject: 16, ArraySingleString: 17,
+        };
+        const BT = { Primitive: 0, String: 1, Object: 2, SystemClass: 3, Class: 4,
+                     ObjectArray: 5, StringArray: 6, PrimitiveArray: 7 };
+        const PT = { Boolean: 1, Byte: 2, Char: 3, Decimal: 5, Double: 6, Int16: 7,
+                     Int32: 8, Int64: 9, SByte: 10, Single: 11, TimeSpan: 12,
+                     DateTime: 13, UInt16: 14, UInt32: 15, UInt64: 16, Null: 17, String: 18 };
+        const PT_NAME = Object.fromEntries(Object.entries(PT).map(([k, v]) => [v, k]));
+        const PT_SIZE = { 1: 1, 2: 1, 6: 8, 7: 2, 8: 4, 9: 8, 10: 1, 11: 4, 12: 8,
+                          13: 8, 14: 2, 15: 4, 16: 8 };
+
+        const utf8 = new TextEncoder();
+        const utf8d = new TextDecoder('utf-8', { fatal: true });
+
+        // ── Primitive value encode/decode ──
+        function decodePrim(ptype, raw) {
+            const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+            switch (ptype) {
+                case PT.Boolean: return raw[0] !== 0;
+                case PT.Byte:    return raw[0];
+                case PT.SByte:   return dv.getInt8(0);
+                case PT.Int16:   return dv.getInt16(0, true);
+                case PT.UInt16:  return dv.getUint16(0, true);
+                case PT.Int32:   return dv.getInt32(0, true);
+                case PT.UInt32:  return dv.getUint32(0, true);
+                case PT.Int64: case PT.TimeSpan: case PT.DateTime:
+                    return dv.getBigInt64(0, true);
+                case PT.UInt64:  return dv.getBigUint64(0, true);
+                case PT.Single:  return dv.getFloat32(0, true);
+                case PT.Double:  return dv.getFloat64(0, true);
+                case PT.Char: case PT.Decimal: case PT.String:
+                    return utf8d.decode(ptype === PT.Char ? raw : raw.subarray(lpsHeaderLen(raw)));
+                default: throw new Error('Unsupported primitive type ' + ptype);
+            }
+        }
+
+        // Validate a user-supplied value and return its encoded bytes.
+        // Throws with a readable message if the value doesn't fit the type.
+        function encodePrim(ptype, input) {
+            const s = String(input).trim();
+            const intRange = (lo, hi) => {
+                if (!/^[-+]?\d+$/.test(s)) throw new Error(`"${s}" is not a whole number`);
+                const n = BigInt(s);
+                if (n < lo || n > hi) throw new Error(`${s} is out of range (${lo} to ${hi})`);
+                return n;
+            };
+            const float = () => {
+                if (s === '' || isNaN(Number(s))) throw new Error(`"${s}" is not a number`);
+                const n = Number(s);
+                if (!isFinite(n)) throw new Error('Value must be finite');
+                return n;
+            };
+            const buf = new Uint8Array(PT_SIZE[ptype] || 0);
+            const dv = new DataView(buf.buffer);
+            switch (ptype) {
+                case PT.Boolean: {
+                    const v = s.toLowerCase();
+                    if (v !== 'true' && v !== 'false') throw new Error('Must be true or false');
+                    buf[0] = v === 'true' ? 1 : 0; return buf;
+                }
+                case PT.Byte:   buf[0] = Number(intRange(0n, 255n)); return buf;
+                case PT.SByte:  dv.setInt8(0, Number(intRange(-128n, 127n))); return buf;
+                case PT.Int16:  dv.setInt16(0, Number(intRange(-32768n, 32767n)), true); return buf;
+                case PT.UInt16: dv.setUint16(0, Number(intRange(0n, 65535n)), true); return buf;
+                case PT.Int32:  dv.setInt32(0, Number(intRange(-2147483648n, 2147483647n)), true); return buf;
+                case PT.UInt32: dv.setUint32(0, Number(intRange(0n, 4294967295n)), true); return buf;
+                case PT.Int64: case PT.TimeSpan: case PT.DateTime:
+                    dv.setBigInt64(0, intRange(-(2n ** 63n), 2n ** 63n - 1n), true); return buf;
+                case PT.UInt64: dv.setBigUint64(0, intRange(0n, 2n ** 64n - 1n), true); return buf;
+                case PT.Single: {
+                    const n = float();
+                    if (Math.abs(n) > 3.4028234663852886e38) throw new Error('Too large for a float');
+                    dv.setFloat32(0, n, true); return buf;
+                }
+                case PT.Double: dv.setFloat64(0, float(), true); return buf;
+                case PT.String: case PT.Decimal: return encodeLPS(String(input));
+                case PT.Char: {
+                    const chars = [...String(input)];
+                    if (chars.length !== 1) throw new Error('Must be exactly one character');
+                    return utf8.encode(chars[0]);
+                }
+                default: throw new Error('Editing ' + (PT_NAME[ptype] || ptype) + ' is not supported');
+            }
+        }
+
+        function lpsHeaderLen(raw) {
+            let i = 0;
+            while (raw[i] & 0x80) i++;
+            return i + 1;
+        }
+
+        function encodeLPS(str) {
+            const body = utf8.encode(str);
+            const head = [];
+            let n = body.length;
+            do {
+                let b = n & 0x7f;
+                n >>>= 7;
+                if (n) b |= 0x80;
+                head.push(b);
+            } while (n);
+            const out = new Uint8Array(head.length + body.length);
+            out.set(head, 0);
+            out.set(body, head.length);
+            return out;
+        }
+
+        // ── Reader ──
+        function parse(input) {
+            const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+            const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            let pos = 0;
+            const byId = new Map();      // objectId → record
+            const classMeta = new Map(); // objectId → record that defined class metadata
+            const libraries = new Map();
+
+            const need = n => {
+                if (pos + n > bytes.length) throw new Error(`Unexpected end of file at byte ${pos}`);
+            };
+            const u8 = () => { need(1); return bytes[pos++]; };
+            const i32 = () => { need(4); const v = dv.getInt32(pos, true); pos += 4; return v; };
+            const take = n => { need(n); const s = bytes.subarray(pos, pos + n); pos += n; return s; };
+
+            function lpsRaw() {
+                const start = pos;
+                let len = 0, shift = 0, b;
+                do {
+                    b = u8();
+                    len |= (b & 0x7f) << shift;
+                    shift += 7;
+                    if (shift > 35) throw new Error('Bad string length at byte ' + start);
+                } while (b & 0x80);
+                take(len);
+                return bytes.subarray(start, pos);
+            }
+            const lps = () => { const raw = lpsRaw(); return utf8d.decode(raw.subarray(lpsHeaderLen(raw))); };
+
+            function readPrim(ptype) {
+                const start = pos;
+                if (ptype === PT.String || ptype === PT.Decimal) lpsRaw();
+                else if (ptype === PT.Char) {
+                    const b = bytes[pos];
+                    take(b < 0x80 ? 1 : b < 0xe0 ? 2 : b < 0xf0 ? 3 : 4);
+                } else if (PT_SIZE[ptype]) take(PT_SIZE[ptype]);
+                else throw new Error(`Unsupported primitive type ${ptype} at byte ${start}`);
+                const raw = bytes.slice(start, pos);
+                return { kind: 'prim', ptype, raw, value: decodePrim(ptype, raw) };
+            }
+
+            function readClassInfo() {
+                const objectId = i32();
+                const name = lps();
+                const count = i32();
+                if (count < 0 || count > 10000) throw new Error('Bad member count for ' + name);
+                const members = [];
+                for (let i = 0; i < count; i++) members.push(lps());
+                return { objectId, name, members };
+            }
+
+            function readAdditionalInfo(bt) {
+                if (bt === BT.Primitive || bt === BT.PrimitiveArray) return u8();
+                if (bt === BT.SystemClass) return lps();
+                if (bt === BT.Class) return { name: lps(), libraryId: i32() };
+                return null;
+            }
+
+            function readMemberTypeInfo(count) {
+                const types = [];
+                for (let i = 0; i < count; i++) types.push(u8());
+                const extra = types.map(readAdditionalInfo);
+                return { types, extra };
+            }
+
+            function readMemberValues(rec, meta) {
+                const { members } = meta.classInfo;
+                const typeInfo = meta.typeInfo;
+                rec.values = members.map((_, i) =>
+                    typeInfo && typeInfo.types[i] === BT.Primitive
+                        ? readPrim(typeInfo.extra[i])
+                        : readRecord());
+            }
+
+            // Read `count` element slots, where ObjectNullMultiple records cover several slots.
+            function readObjectSlots(count) {
+                const items = [];
+                let filled = 0;
+                while (filled < count) {
+                    const r = readRecord();
+                    items.push(r);
+                    filled += r.type === RT.ObjectNullMultiple || r.type === RT.ObjectNullMultiple256 ? r.count : 1;
+                }
+                if (filled !== count) throw new Error('Array null-run overflow');
+                return items;
+            }
+
+            function register(rec) {
+                if (rec.objectId !== undefined) byId.set(rec.objectId, rec);
+            }
+
+            function readRecord() {
+                const start = pos;
+                const libs = [];
+                let type = u8();
+                while (type === RT.BinaryLibrary) {
+                    const lib = { type, libraryId: i32(), name: lps() };
+                    libraries.set(lib.libraryId, lib.name);
+                    libs.push(lib);
+                    type = u8();
+                }
+                const rec = { type };
+                if (libs.length) rec.libs = libs;
+
+                switch (type) {
+                    case RT.Header:
+                        rec.rootId = i32(); rec.headerId = i32();
+                        rec.major = i32(); rec.minor = i32();
+                        break;
+                    case RT.ClassWithId: {
+                        rec.objectId = i32();
+                        rec.metadataId = i32();
+                        const meta = classMeta.get(rec.metadataId);
+                        if (!meta) throw new Error(`Unknown class metadata id ${rec.metadataId} at byte ${start}`);
+                        rec.className = meta.classInfo.name;
+                        rec.memberNames = meta.classInfo.members;
+                        register(rec);
+                        readMemberValues(rec, meta);
+                        break;
+                    }
+                    case RT.SystemClassWithMembers:
+                    case RT.ClassWithMembers:
+                    case RT.SystemClassWithMembersAndTypes:
+                    case RT.ClassWithMembersAndTypes: {
+                        rec.classInfo = readClassInfo();
+                        if (type === RT.SystemClassWithMembersAndTypes || type === RT.ClassWithMembersAndTypes)
+                            rec.typeInfo = readMemberTypeInfo(rec.classInfo.members.length);
+                        if (type === RT.ClassWithMembers || type === RT.ClassWithMembersAndTypes)
+                            rec.libraryId = i32();
+                        rec.objectId = rec.classInfo.objectId;
+                        rec.className = rec.classInfo.name;
+                        rec.memberNames = rec.classInfo.members;
+                        classMeta.set(rec.objectId, rec);
+                        register(rec);
+                        readMemberValues(rec, rec);
+                        break;
+                    }
+                    case RT.BinaryObjectString:
+                        rec.objectId = i32();
+                        rec.value = lps();
+                        register(rec);
+                        break;
+                    case RT.BinaryArray: {
+                        rec.objectId = i32();
+                        rec.arrayType = u8();
+                        rec.rank = i32();
+                        rec.lengths = [];
+                        for (let i = 0; i < rec.rank; i++) rec.lengths.push(i32());
+                        if (rec.arrayType >= 3 && rec.arrayType <= 5) {
+                            rec.lowerBounds = [];
+                            for (let i = 0; i < rec.rank; i++) rec.lowerBounds.push(i32());
+                        }
+                        rec.itemType = u8();
+                        rec.itemExtra = readAdditionalInfo(rec.itemType);
+                        register(rec);
+                        const total = rec.lengths.reduce((a, b) => a * b, 1);
+                        if (rec.itemType === BT.Primitive) {
+                            rec.values = [];
+                            for (let i = 0; i < total; i++) rec.values.push(readPrim(rec.itemExtra));
+                        } else {
+                            rec.values = readObjectSlots(total);
+                        }
+                        break;
+                    }
+                    case RT.MemberPrimitiveTyped: {
+                        const p = readPrim(u8());
+                        rec.prim = p;
+                        break;
+                    }
+                    case RT.MemberReference: rec.idRef = i32(); break;
+                    case RT.ObjectNull: case RT.MessageEnd: break;
+                    case RT.ObjectNullMultiple256: rec.count = u8(); break;
+                    case RT.ObjectNullMultiple: rec.count = i32(); break;
+                    case RT.ArraySinglePrimitive: {
+                        rec.objectId = i32();
+                        const length = i32();
+                        rec.ptype = u8();
+                        register(rec);
+                        rec.values = [];
+                        for (let i = 0; i < length; i++) rec.values.push(readPrim(rec.ptype));
+                        break;
+                    }
+                    case RT.ArraySingleObject:
+                    case RT.ArraySingleString: {
+                        rec.objectId = i32();
+                        const length = i32();
+                        register(rec);
+                        rec.length = length;
+                        rec.values = readObjectSlots(length);
+                        break;
+                    }
+                    default:
+                        throw new Error(`Unsupported record type ${type} at byte ${start}`);
+                }
+                return rec;
+            }
+
+            const records = [];
+            const header = readRecord();
+            if (header.type !== RT.Header) throw new Error('Not a .NET BinaryFormatter file (missing header)');
+            records.push(header);
+            for (;;) {
+                const r = readRecord();
+                records.push(r);
+                if (r.type === RT.MessageEnd) break;
+            }
+            if (pos !== bytes.length) throw new Error(`${bytes.length - pos} unexpected trailing bytes`);
+            return { records, byId, libraries, rootId: header.rootId };
+        }
+
+        // ── Writer ──
+        function serialize(doc) {
+            const chunks = [];
+            let size = 0;
+            const push = arr => { chunks.push(arr); size += arr.length; };
+            const u8 = v => push(Uint8Array.of(v));
+            const i32 = v => { const b = new Uint8Array(4); new DataView(b.buffer).setInt32(0, v, true); push(b); };
+            const lps = s => push(encodeLPS(s));
+
+            function writeAdditionalInfo(bt, extra) {
+                if (bt === BT.Primitive || bt === BT.PrimitiveArray) u8(extra);
+                else if (bt === BT.SystemClass) lps(extra);
+                else if (bt === BT.Class) { lps(extra.name); i32(extra.libraryId); }
+            }
+
+            function writeValue(v) {
+                if (v.kind === 'prim') push(v.raw);
+                else writeRecord(v);
+            }
+
+            function writeRecord(rec) {
+                if (rec.libs) for (const lib of rec.libs) { u8(RT.BinaryLibrary); i32(lib.libraryId); lps(lib.name); }
+                u8(rec.type);
+                switch (rec.type) {
+                    case RT.Header: i32(rec.rootId); i32(rec.headerId); i32(rec.major); i32(rec.minor); break;
+                    case RT.ClassWithId:
+                        i32(rec.objectId); i32(rec.metadataId);
+                        rec.values.forEach(writeValue);
+                        break;
+                    case RT.SystemClassWithMembers:
+                    case RT.ClassWithMembers:
+                    case RT.SystemClassWithMembersAndTypes:
+                    case RT.ClassWithMembersAndTypes: {
+                        const ci = rec.classInfo;
+                        i32(ci.objectId); lps(ci.name); i32(ci.members.length);
+                        ci.members.forEach(lps);
+                        if (rec.typeInfo) {
+                            rec.typeInfo.types.forEach(u8);
+                            rec.typeInfo.types.forEach((t, i) => writeAdditionalInfo(t, rec.typeInfo.extra[i]));
+                        }
+                        if (rec.libraryId !== undefined) i32(rec.libraryId);
+                        rec.values.forEach(writeValue);
+                        break;
+                    }
+                    case RT.BinaryObjectString: i32(rec.objectId); lps(rec.value); break;
+                    case RT.BinaryArray:
+                        i32(rec.objectId); u8(rec.arrayType); i32(rec.rank);
+                        rec.lengths.forEach(i32);
+                        if (rec.lowerBounds) rec.lowerBounds.forEach(i32);
+                        u8(rec.itemType);
+                        writeAdditionalInfo(rec.itemType, rec.itemExtra);
+                        rec.values.forEach(writeValue);
+                        break;
+                    case RT.MemberPrimitiveTyped: u8(rec.prim.ptype); push(rec.prim.raw); break;
+                    case RT.MemberReference: i32(rec.idRef); break;
+                    case RT.ObjectNull: case RT.MessageEnd: break;
+                    case RT.ObjectNullMultiple256: u8(rec.count); break;
+                    case RT.ObjectNullMultiple: i32(rec.count); break;
+                    case RT.ArraySinglePrimitive:
+                        i32(rec.objectId); i32(rec.values.length); u8(rec.ptype);
+                        rec.values.forEach(writeValue);
+                        break;
+                    case RT.ArraySingleObject:
+                    case RT.ArraySingleString:
+                        i32(rec.objectId); i32(rec.length);
+                        rec.values.forEach(writeValue);
+                        break;
+                    default: throw new Error('Cannot write record type ' + rec.type);
+                }
+            }
+
+            doc.records.forEach(writeRecord);
+            const out = new Uint8Array(size);
+            let off = 0;
+            for (const c of chunks) { out.set(c, off); off += c.length; }
+            return out;
+        }
+
+        // Update a primitive in place after validating the new value.
+        function setPrim(prim, input) {
+            const raw = encodePrim(prim.ptype, input);
+            prim.raw = raw;
+            prim.value = decodePrim(prim.ptype, raw);
+        }
+
+        function bytesEqual(a, b) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+            return true;
+        }
+
+        return { RT, BT, PT, PT_NAME, parse, serialize, setPrim, encodePrim, decodePrim, bytesEqual };
+    })();
+
+    // ─── Save model ───────────────────────────────────────────────────────────
+    // A Ghost Song save is a serialized System.Collections.Hashtable: a Keys
+    // array of strings and a parallel Values array. Most keys end in the save
+    // slot number (nanites1, healthmax1, ...).
+    //
+    // A "leaf" is anything editable: a primitive ({kind:'prim'}) or a string
+    // record (type 6). Edits never add, remove or resize anything, so the file
+    // keeps exactly the same structure.
+
+    const { RT, PT, PT_NAME } = NRBF;
+
+    let state = null;
+
+    function deref(doc, v) {
+        return v && v.type === RT.MemberReference ? doc.byId.get(v.idRef) : v;
+    }
+
+    function member(rec, name) {
+        const i = rec.memberNames ? rec.memberNames.indexOf(name) : -1;
+        return i < 0 ? undefined : rec.values[i];
+    }
+
+    // Expand ObjectNullMultiple runs so array slots line up with indices.
+    function expandSlots(values) {
+        const out = [];
+        for (const v of values) {
+            if (v.type === RT.ObjectNullMultiple || v.type === RT.ObjectNullMultiple256) {
+                for (let i = 0; i < v.count; i++) out.push({ type: RT.ObjectNull });
+            } else out.push(v);
+        }
+        return out;
+    }
+
+    const isList = rec => rec.className && rec.className.startsWith('System.Collections.Generic.List`1');
+
+    function shortTypeName(full) {
+        const m = full.match(/\[\[([^,\]]+)/);
+        const inner = m ? m[1].replace(/^System\./, '') : '';
+        if (full.startsWith('System.Collections.Generic.List`1')) return `List<${inner}>`;
+        return full.split(',')[0].replace(/^System\./, '');
+    }
+
+    function loadSave(bytes) {
+        const doc = NRBF.parse(bytes);
+        const roundTrip = NRBF.serialize(doc);
+        if (!NRBF.bytesEqual(roundTrip, bytes)) {
+            throw new Error('Re-encoding the file did not reproduce it exactly, so editing it would not be safe.');
+        }
+        const root = doc.byId.get(doc.rootId);
+        if (!root || root.className !== 'System.Collections.Hashtable') {
+            throw new Error('This is a .NET save file, but not the Hashtable layout Ghost Song uses.');
+        }
+        const keysArr = deref(doc, member(root, 'Keys'));
+        const valsArr = deref(doc, member(root, 'Values'));
+        const keySlots = expandSlots(keysArr.values).map(k => deref(doc, k));
+        const valSlots = expandSlots(valsArr.values);
+        if (keySlots.length !== valSlots.length) throw new Error('Keys and values have different lengths.');
+
+        const entries = keySlots.map((k, i) => {
+            if (!k || k.type !== RT.BinaryObjectString) throw new Error('Unexpected non-string key at index ' + i);
+            return { key: k.value, value: valSlots[i] };
+        });
+
+        // Index every leaf reachable from the values: a readable path, which
+        // keys share it, and whether it may be edited.
+        const keyStrings = new Set(keySlots);
+        const leafInfo = new Map();   // leaf → { path, owners:Set, editable }
+        const recOwners = new Map();  // record → Set of keys that reach it
+
+        for (const entry of entries) {
+            const seen = new Set();
+            const visit = (v, path, memberName) => {
+                v = deref(doc, v);
+                if (!v) return;
+                let leaf = null;
+                if (v.kind === 'prim') leaf = v;
+                else if (v.type === RT.MemberPrimitiveTyped) leaf = v.prim;
+                else if (v.type === RT.BinaryObjectString) leaf = v;
+                if (v.objectId !== undefined) {
+                    if (!recOwners.has(v)) recOwners.set(v, new Set());
+                    recOwners.get(v).add(entry.key);
+                }
+                if (leaf) {
+                    let info = leafInfo.get(leaf);
+                    if (!info) {
+                        info = {
+                            path,
+                            owners: new Set(),
+                            editable: !keyStrings.has(leaf) && memberName !== '_size' && memberName !== '_version',
+                        };
+                        leafInfo.set(leaf, info);
+                    }
+                    info.owners.add(entry.key);
+                    return;
+                }
+                if (seen.has(v)) return;
+                seen.add(v);
+                if (isList(v)) {
+                    visit(member(v, '_size'), path + '._size', '_size');
+                    visit(member(v, '_version'), path + '._version', '_version');
+                    const items = deref(doc, member(v, '_items'));
+                    if (items) {
+                        seen.add(items);
+                        if (!recOwners.has(items)) recOwners.set(items, new Set());
+                        recOwners.get(items).add(entry.key);
+                        expandSlots(items.values).forEach((c, i) => visit(c, `${path}[${i}]`, null));
+                    }
+                } else if (v.memberNames) {
+                    v.values.forEach((c, i) => visit(c, `${path}.${v.memberNames[i]}`, v.memberNames[i]));
+                } else if (v.values) {
+                    expandSlots(v.values).forEach((c, i) => visit(c, `${path}[${i}]`, null));
+                }
+            };
+            visit(entry.value, entry.key, null);
+        }
+
+        // Remember original bytes for every leaf so changes can be detected and reverted.
+        const original = new Map();
+        for (const leaf of leafInfo.keys()) original.set(leaf, leafSnapshot(leaf));
+
+        return { doc, entries, leafInfo, recOwners, original, byKey: new Map(entries.map(e => [e.key, e])) };
+    }
+
+    // ─── Leaf helpers ─────────────────────────────────────────────────────────
+
+    function leafSnapshot(leaf) {
+        return leaf.kind === 'prim' ? leaf.raw : leaf.value;
+    }
+
+    function leafType(leaf) {
+        return leaf.kind === 'prim' ? PT_NAME[leaf.ptype] : 'String';
+    }
+
+    function fmtFloat32(v) {
+        if (!isFinite(v)) return String(v);
+        for (let p = 1; p <= 9; p++) {
+            const s = Number(v.toPrecision(p));
+            if (Math.fround(s) === v) return String(s);
+        }
+        return String(v);
+    }
+
+    function fmtSnapshot(leaf, snap) {
+        if (leaf.kind !== 'prim') return snap;
+        const v = NRBF.decodePrim(leaf.ptype, snap);
+        if (leaf.ptype === PT.Single) return fmtFloat32(v);
+        return String(v);
+    }
+
+    const leafText = leaf => fmtSnapshot(leaf, leafSnapshot(leaf));
+
+    function isChanged(leaf) {
+        const before = state.original.get(leaf);
+        const now = leafSnapshot(leaf);
+        return leaf.kind === 'prim' ? !NRBF.bytesEqual(before, now) : before !== now;
+    }
+
+    function setLeaf(leaf, input) {
+        if (leaf.kind === 'prim') NRBF.setPrim(leaf, input);
+        else {
+            if (input.length > 1000) throw new Error('Text is too long');
+            leaf.value = input;
+        }
+    }
+
+    function changedLeaves() {
+        return [...state.leafInfo.keys()].filter(isChanged);
+    }
+
+    // ─── Inputs (kept in sync wherever a leaf is shown) ───────────────────────
+
+    const inputsByLeaf = new Map();
+
+    function makeLeafInput(leaf, onMessage) {
+        const info = state.leafInfo.get(leaf);
+        let el;
+        if (leaf.kind === 'prim' && leaf.ptype === PT.Boolean) {
+            el = document.createElement('select');
+            for (const v of ['true', 'false']) {
+                const opt = document.createElement('option');
+                opt.value = opt.textContent = v;
+                el.appendChild(opt);
+            }
+        } else {
+            el = document.createElement('input');
+            el.type = 'text';
+            el.spellcheck = false;
+            el.autocomplete = 'off';
+            if (leaf.kind === 'prim') el.inputMode = leaf.ptype === PT.Single || leaf.ptype === PT.Double ? 'decimal' : 'numeric';
+        }
+        el.value = leafText(leaf);
+        el.title = leafType(leaf);
+        if (!info || !info.editable) {
+            el.disabled = el.tagName === 'SELECT';
+            el.readOnly = true;
+            el.title += ' (read-only: changing this would corrupt the file structure)';
+        } else {
+            el.addEventListener('change', () => {
+                try {
+                    setLeaf(leaf, el.value);
+                    el.classList.remove('invalid');
+                    onMessage && onMessage(null);
+                } catch (err) {
+                    el.classList.add('invalid');
+                    onMessage && onMessage(err.message);
+                    return;
+                }
+                syncLeaf(leaf);
+                renderChanges();
+            });
+        }
+        if (!inputsByLeaf.has(leaf)) inputsByLeaf.set(leaf, new Set());
+        inputsByLeaf.get(leaf).add({ el, onMessage });
+        el.classList.toggle('changed', isChanged(leaf));
+        return el;
+    }
+
+    function syncLeaf(leaf) {
+        const changed = isChanged(leaf);
+        for (const { el, onMessage } of inputsByLeaf.get(leaf) || []) {
+            el.value = leafText(leaf);
+            el.classList.toggle('changed', changed);
+            el.classList.remove('invalid');
+            onMessage && onMessage(null);
+        }
+    }
+
+    // ─── Quick edit ───────────────────────────────────────────────────────────
+
+    const STAT_LABELS = { Health: 'Health', Spirit: 'Spirit', Ammo: 'Ammo', GunPower: 'Gun power',
+                          Volatility: 'Volatility', Vigor: 'Vigor', Luck: 'Luck' };
+
+    const QUICK = [
+        { group: 'Resources', fields: [
+            { key: 'nanites', label: 'Nanogel' },
+            { key: 'flowerjuice', label: 'Flower juice' },
+            { key: 'bugblood', label: 'Bug blood' },
+        ]},
+        { group: 'Vitals', fields: [
+            { key: 'health', label: 'Health' },
+            { key: 'healthmax', label: 'Max health' },
+            { key: 'spirit', label: 'Spirit' },
+            { key: 'ammo', label: 'Ammo' },
+            { key: 'stamina', label: 'Stamina' },
+            { key: 'shieldhealth', label: 'Shield' },
+            { key: 'shieldhealthmax', label: 'Max shield' },
+        ]},
+        { group: 'Base stats', fields: Object.entries(STAT_LABELS).map(([m, label]) => ({ key: 'basestats', member: m, label })) },
+        { group: 'Levelling & gear', fields: [
+            { key: 'xp', member: 'RequiredNano', label: 'Nanogel needed for next level' },
+            { key: 'xp', member: 'Multiplier', label: 'Level cost multiplier' },
+            { key: 'gunlvl', label: 'Gun level' },
+            { key: 'modulemax', label: 'Module max' },
+            { key: 'socketsmax', label: 'Sockets max' },
+        ]},
+        { group: 'Run', fields: [
+            { key: 'timeplayed', label: 'Time played (seconds)', hint: secondsHint },
+            { key: 'timesdied', label: 'Times died' },
+            { key: 'difficulty', label: 'Difficulty' },
+        ]},
+    ];
+
+    function secondsHint(leaf) {
+        const s = Number(leaf.value);
+        if (!isFinite(s)) return '';
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+        return `${h}h ${m}m`;
+    }
+
+    function detectSlots() {
+        const slots = new Set();
+        for (const { key } of state.entries) {
+            const m = key.match(/^(?:nanites|healthmax|basestats)(\d+)$/);
+            if (m) slots.add(m[1]);
+        }
+        return [...slots].sort((a, b) => a - b);
+    }
+
+    function quickLeaf(slot, field) {
+        const entry = state.byKey.get(field.key + slot);
+        if (!entry) return null;
+        let v = deref(state.doc, entry.value);
+        if (field.member) {
+            if (!v || !v.memberNames) return null;
+            v = deref(state.doc, member(v, field.member));
+        }
+        if (!v) return null;
+        if (v.kind === 'prim') return v;
+        if (v.type === RT.MemberPrimitiveTyped) return v.prim;
+        return null;
+    }
+
+    function renderQuick() {
+        const body = document.getElementById('quick-body');
+        body.innerHTML = '';
+        const slot = document.getElementById('slot-select').value;
+        let shown = 0;
+        for (const { group, fields } of QUICK) {
+            const items = fields.map(f => [f, quickLeaf(slot, f)]).filter(([, leaf]) => leaf);
+            if (!items.length) continue;
+            const h = document.createElement('h3');
+            h.textContent = group;
+            body.appendChild(h);
+            const grid = document.createElement('div');
+            grid.className = 'quick-grid';
+            for (const [f, leaf] of items) {
+                const field = document.createElement('div');
+                field.className = 'field';
+                const id = `q-${f.key}-${f.member || ''}`;
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.innerHTML = `${escapeHTML(f.label)} <span class="key">${escapeHTML(f.key + slot + (f.member ? '.' + f.member : ''))}</span>`;
+                const hint = document.createElement('div');
+                hint.className = 'hint';
+                const updateHint = msg => {
+                    hint.classList.toggle('err', !!msg);
+                    if (msg) { hint.textContent = msg; return; }
+                    const parts = [];
+                    if (f.hint) parts.push(f.hint(leaf));
+                    if (isChanged(leaf)) parts.push('was ' + fmtSnapshot(leaf, state.original.get(leaf)));
+                    hint.textContent = parts.join(' · ');
+                };
+                const input = makeLeafInput(leaf, updateHint);
+                input.id = id;
+                updateHint(null);
+                field.append(label, input, hint);
+                grid.appendChild(field);
+                shown++;
+            }
+            body.appendChild(grid);
+        }
+        if (!shown) {
+            body.innerHTML = '<p class="muted">No well-known fields found for this slot. Use "All values" below.</p>';
+        }
+    }
+
+    // ─── All values tree ──────────────────────────────────────────────────────
+
+    // Describe a value for display: a leaf, null, or a container with lazily built children.
+    function describe(v) {
+        const doc = state.doc;
+        v = deref(doc, v);
+        if (!v || v.type === RT.ObjectNull) return { kind: 'null' };
+        if (v.kind === 'prim') return { kind: 'leaf', leaf: v };
+        if (v.type === RT.MemberPrimitiveTyped) return { kind: 'leaf', leaf: v.prim };
+        if (v.type === RT.BinaryObjectString) return { kind: 'leaf', leaf: v };
+        if (isList(v)) {
+            const size = member(v, '_size').value;
+            const items = deref(doc, member(v, '_items'));
+            const slots = items ? expandSlots(items.values).slice(0, size) : [];
+            return {
+                kind: 'container', rec: v, typeName: shortTypeName(v.className),
+                summary: `${size} item${size === 1 ? '' : 's'}`,
+                children: () => slots.map((c, i) => ({ label: `[${i}]`, value: c, index: true })),
+            };
+        }
+        if (v.memberNames) {
+            return {
+                kind: 'container', rec: v, typeName: shortTypeName(v.className),
+                summary: v.memberNames.map((n, i) => {
+                    const d = describe(v.values[i]);
+                    return d.kind === 'leaf' ? `${n}=${leafText(d.leaf)}` : n;
+                }).join(', '),
+                children: () => v.memberNames.map((n, i) => ({ label: n, value: v.values[i] })),
+            };
+        }
+        if (v.values) {
+            const slots = expandSlots(v.values);
+            const elemType = v.type === RT.ArraySinglePrimitive ? PT_NAME[v.ptype]
+                           : v.type === RT.ArraySingleString ? 'String' : 'Object';
+            let summary = `${slots.length} item${slots.length === 1 ? '' : 's'}`;
+            if (v.type === RT.ArraySinglePrimitive && slots.length <= 4) {
+                summary = '(' + slots.map(leafText).join(', ') + ')';
+            }
+            return {
+                kind: 'container', rec: v, typeName: elemType + '[]', summary,
+                children: () => slots.map((c, i) => ({ label: `[${i}]`, value: c, index: true })),
+            };
+        }
+        return { kind: 'null' };
+    }
+
+    function sharedBadge(owners, selfKey) {
+        if (!owners || owners.size < 2) return null;
+        const others = [...owners].filter(k => k !== selfKey);
+        const b = document.createElement('span');
+        b.className = 'badge warn';
+        b.textContent = `shared ×${owners.size}`;
+        b.title = 'The same object is also used by: ' + others.join(', ') + '. Editing it changes all of them.';
+        return b;
+    }
+
+    function buildRow(label, value, topKey, isIndex) {
+        const d = describe(value);
+        const row = document.createElement('div');
+        row.className = 'tree-row';
+        const name = document.createElement('span');
+        name.className = isIndex ? 'idx' : 'name';
+        name.textContent = label;
+
+        if (d.kind === 'container') {
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.className = 'tree-row';
+            const caret = document.createElement('span');
+            caret.className = 'caret';
+            caret.textContent = '▶';
+            const type = document.createElement('span');
+            type.className = 'type';
+            type.textContent = d.typeName;
+            const sum = document.createElement('span');
+            sum.className = 'muted';
+            sum.textContent = d.summary.length > 80 ? d.summary.slice(0, 80) + '…' : d.summary;
+            summary.append(caret, name, type, sum);
+            const badge = sharedBadge(state.recOwners.get(d.rec), topKey);
+            if (badge) summary.appendChild(badge);
+            details.appendChild(summary);
+            const kids = document.createElement('div');
+            kids.className = 'children';
+            details.appendChild(kids);
+            details.addEventListener('toggle', () => {
+                if (!details.open || kids.childElementCount) return;
+                for (const c of d.children()) kids.appendChild(buildRow(c.label, c.value, topKey, c.index));
+                if (!kids.childElementCount) kids.innerHTML = '<div class="tree-row muted">empty</div>';
+            });
+            return details;
+        }
+
+        const caretPad = document.createElement('span');
+        caretPad.className = 'caret';
+        row.appendChild(caretPad);
+        row.appendChild(name);
+        if (d.kind === 'null') {
+            const n = document.createElement('span');
+            n.className = 'muted';
+            n.textContent = 'null';
+            row.appendChild(n);
+            return row;
+        }
+        const type = document.createElement('span');
+        type.className = 'type';
+        type.textContent = leafType(d.leaf);
+        const err = document.createElement('span');
+        err.className = 'err-text';
+        const input = makeLeafInput(d.leaf, msg => { err.textContent = msg || ''; });
+        input.setAttribute('aria-label', label);
+        row.append(type, input);
+        const info = state.leafInfo.get(d.leaf);
+        const badge = info && sharedBadge(info.owners, topKey);
+        if (badge) row.appendChild(badge);
+        row.appendChild(err);
+        return row;
+    }
+
+    function renderTree() {
+        const tree = document.getElementById('tree');
+        tree.innerHTML = '';
+        const sorted = [...state.entries].sort((a, b) => a.key.localeCompare(b.key, undefined, { sensitivity: 'base' }));
+        for (const entry of sorted) {
+            const el = buildRow(entry.key, entry.value, entry.key, false);
+            el.dataset.key = entry.key.toLowerCase();
+            tree.appendChild(el);
+        }
+        document.getElementById('all-count').textContent = `${state.entries.length} keys`;
+        applyFilter();
+    }
+
+    function applyFilter() {
+        const q = document.getElementById('filter').value.trim().toLowerCase();
+        for (const el of document.getElementById('tree').children) {
+            el.style.display = !q || el.dataset.key.includes(q) ? '' : 'none';
+        }
+    }
+
+    // ─── Changes ──────────────────────────────────────────────────────────────
+
+    function renderChanges() {
+        const changes = changedLeaves();
+        const list = document.getElementById('changes-list');
+        list.innerHTML = '';
+        for (const leaf of changes) {
+            const info = state.leafInfo.get(leaf);
+            const li = document.createElement('li');
+            const path = document.createElement('span');
+            path.className = 'path';
+            path.textContent = info.path + (info.owners.size > 1 ? `  (also ${[...info.owners].filter(k => !info.path.startsWith(k)).join(', ')})` : '');
+            const from = document.createElement('span');
+            from.className = 'from';
+            const quote = t => leaf.kind === 'prim' ? t : JSON.stringify(t);
+            from.textContent = quote(fmtSnapshot(leaf, state.original.get(leaf)));
+            const arrow = document.createElement('span');
+            arrow.textContent = '→';
+            const to = document.createElement('span');
+            to.className = 'to';
+            to.textContent = quote(leafText(leaf));
+            const revert = document.createElement('button');
+            revert.className = 'link';
+            revert.textContent = 'revert';
+            revert.addEventListener('click', () => revertLeaf(leaf));
+            li.append(path, from, arrow, to, revert);
+            list.appendChild(li);
+        }
+        document.getElementById('changes-panel').classList.toggle('visible', changes.length > 0);
+        document.getElementById('download-btn').disabled = changes.length === 0;
+        document.getElementById('save-count').textContent = changes.length
+            ? `${changes.length} pending change${changes.length === 1 ? '' : 's'}`
+            : 'No changes yet';
+    }
+
+    function revertLeaf(leaf) {
+        const snap = state.original.get(leaf);
+        if (leaf.kind === 'prim') {
+            leaf.raw = snap;
+            leaf.value = NRBF.decodePrim(leaf.ptype, snap);
+        } else leaf.value = snap;
+        syncLeaf(leaf);
+        renderChanges();
+    }
+
+    // ─── Export with verification ─────────────────────────────────────────────
+
+    // Flatten a document into its record shape and its leaf values, in file order.
+    function flatten(doc) {
+        const shape = [], leaves = [];
+        const visitVal = v => {
+            if (v.kind === 'prim') leaves.push('p' + v.ptype + ':' + [...v.raw].join(','));
+            else visitRec(v);
+        };
+        const visitRec = r => {
+            shape.push(r.type + ':' + (r.className || '') + ':' + (r.objectId ?? '') + ':' + (r.idRef ?? '') + ':' + (r.values ? r.values.length : ''));
+            if (r.type === RT.BinaryObjectString) leaves.push('s:' + r.value);
+            if (r.type === RT.MemberPrimitiveTyped) visitVal(r.prim);
+            if (r.values) r.values.forEach(visitVal);
+        };
+        doc.records.forEach(visitRec);
+        return { shape, leaves };
+    }
+
+    function buildVerifiedFile() {
+        const out = NRBF.serialize(state.doc);
+        const reread = NRBF.parse(out);
+        if (!NRBF.bytesEqual(NRBF.serialize(reread), out)) throw new Error('Re-reading the new file did not reproduce it.');
+
+        const before = flatten(NRBF.parse(state.originalBytes));
+        const intended = flatten(state.doc);
+        const after = flatten(reread);
+        if (before.shape.join('\n') !== after.shape.join('\n')) throw new Error('The file structure changed unexpectedly.');
+        if (intended.leaves.length !== after.leaves.length) throw new Error('Value count changed unexpectedly.');
+        let diffs = 0;
+        for (let i = 0; i < after.leaves.length; i++) {
+            if (after.leaves[i] !== intended.leaves[i]) throw new Error('A value was not written as intended.');
+            if (after.leaves[i] !== before.leaves[i]) diffs++;
+        }
+        const expected = changedLeaves().length;
+        if (diffs !== expected) throw new Error(`Expected ${expected} changed values but found ${diffs}.`);
+        return { out, diffs };
+    }
+
+    function downloadBytes(bytes, filename) {
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    document.getElementById('download-btn').addEventListener('click', () => {
+        hideMessages();
+        const invalid = document.querySelector('input.invalid');
+        if (invalid) {
+            showError('Some values are invalid (highlighted in red). Fix or clear them before downloading.');
+            invalid.scrollIntoView({ block: 'center' });
+            invalid.focus();
+            return;
+        }
+        try {
+            const { out, diffs } = buildVerifiedFile();
+            downloadBytes(out, state.filename);
+            state.downloaded = true;
+            showStatus('ok', `Downloaded ${state.filename} (${out.length.toLocaleString()} bytes). ` +
+                `Verified: reading the new file back shows exactly ${diffs} changed value${diffs === 1 ? '' : 's'} and nothing else.`);
+        } catch (err) {
+            showError('Download blocked, the edited file failed verification: ' + err.message);
+        }
+    });
+
+    document.getElementById('backup-btn').addEventListener('click', () => {
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+        downloadBytes(state.originalBytes, `${state.filename}.backup-${stamp}`);
+    });
+
+    document.getElementById('reset-all-btn').addEventListener('click', () => {
+        changedLeaves().forEach(revertLeaf);
+    });
+
+    window.addEventListener('beforeunload', e => {
+        if (state && changedLeaves().length && !state.downloaded) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    // ─── File loading ─────────────────────────────────────────────────────────
+
+    function loadFile(file) {
+        hideMessages();
+        const reader = new FileReader();
+        reader.onload = e => {
+            const bytes = new Uint8Array(e.target.result);
+            try {
+                const loaded = loadSave(bytes);
+                state = { ...loaded, originalBytes: bytes, filename: file.name, downloaded: false };
+            } catch (err) {
+                state = null;
+                for (const id of ['quick-panel', 'all-panel', 'changes-panel', 'tips']) document.getElementById(id).classList.remove('visible');
+                dropzone.style.display = '';
+                document.getElementById('save-bar').classList.remove('visible');
+                showError(`Could not open ${file.name}. It doesn't look like a Ghost Song save file (${err.message}).`);
+                return;
+            }
+            inputsByLeaf.clear();
+            document.getElementById('filename-label').textContent = `${file.name} · ${bytes.length.toLocaleString()} bytes`;
+
+            const slotSelect = document.getElementById('slot-select');
+            slotSelect.innerHTML = '';
+            const slots = detectSlots();
+            const recent = state.byKey.get('MostRecentSave');
+            const recentSlot = recent ? leafText(describe(recent.value).leaf || { kind: 'prim', ptype: PT.Int32, raw: new Uint8Array(4) }) : null;
+            for (const s of slots) {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = `Slot ${s}` + (s === recentSlot ? ' (most recent)' : '');
+                slotSelect.appendChild(opt);
+            }
+            if (slots.includes(recentSlot)) slotSelect.value = recentSlot;
+            slotSelect.parentElement.querySelectorAll('label, select').forEach(el => el.style.display = slots.length ? '' : 'none');
+
+            document.getElementById('filter').value = '';
+            renderQuick();
+            renderTree();
+            renderChanges();
+            for (const id of ['quick-panel', 'all-panel', 'tips']) document.getElementById(id).classList.add('visible');
+            dropzone.style.display = 'none';
+            document.getElementById('save-bar').classList.add('visible');
+            showStatus('ok', `Safety check passed: all ${state.doc.records.length} records were decoded and re-encoding them reproduces the original file byte for byte.`);
+        };
+        reader.onerror = () => showError('Failed to read file.');
+        reader.readAsArrayBuffer(file);
+    }
+
+    document.getElementById('slot-select').addEventListener('change', renderQuick);
+    document.getElementById('filter').addEventListener('input', applyFilter);
+    document.getElementById('load-another-btn').addEventListener('click', () => fileInput.click());
+
+    // ─── Drag & drop / file input ─────────────────────────────────────────────
+
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', e => {
+        e.preventDefault();
+        dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropzone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) loadFile(file);
+    });
+    fileInput.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (file && (!state || !changedLeaves().length || state.downloaded ||
+                     confirm('Discard your pending changes and open another file?'))) loadFile(file);
+        fileInput.value = '';
+    });
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    function escapeHTML(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('error-msg');
+        el.textContent = msg;
+        el.classList.add('visible');
+    }
+
+    function showStatus(kind, msg) {
+        const el = document.getElementById('status-msg');
+        el.className = 'msg visible ' + kind;
+        el.textContent = msg;
+    }
+
+    function hideMessages() {
+        document.getElementById('error-msg').classList.remove('visible');
+        document.getElementById('status-msg').classList.remove('visible');
+    }
+    </script>
+</body>
+</html>
