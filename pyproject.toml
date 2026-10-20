@@ -1,0 +1,16 @@
+[project]
+name = "tools"
+version = "0.1"
+description = "Assorted useful tools, almost entirely generated using LLMs"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest",
+    "pytest-playwright",
+]
+
+[tool.setuptools]
+# Not an importable package; this file only declares the test dependencies.
+py-modules = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
