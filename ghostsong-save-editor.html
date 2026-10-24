@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghost Song Save Editor</title>
+    <title>Ghost Song Progress Checker</title>
     <style>
         * { box-sizing: border-box; }
 
@@ -208,6 +208,59 @@
 
         ul.tips { font-size: 13px; padding-left: 20px; margin: 0; }
 
+        .module-tools { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .module-tools input[type=search] { flex: 1; min-width: 180px; }
+        .module-row { display: grid; grid-template-columns: minmax(160px, 1fr) 110px; gap: 4px 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .module-row .hint { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); }
+        .module-row .hint.err { color: var(--err); }
+        .module-row label { font-size: 13px; }
+        .module-row .badge { margin-left: 6px; }
+        .module-row[hidden], .module-group[hidden] { display: none; }
+        .quest-card { border-left: 3px solid var(--border); padding: 8px 12px; margin: 10px 0; }
+        .quest-card.available { border-color: var(--ok); }
+        .quest-card p { margin: 4px 0; font-size: 13px; }
+        .quest-card strong { font-size: 13px; }
+        .quest-flags { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .quest-flags td, .quest-flags th { padding: 5px; border-bottom: 1px solid var(--border); text-align: left; }
+        #run-summary { margin-top: 0; }
+
+
+        [hidden], .panel.view-hidden, #save-bar.view-hidden { display: none !important; }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+        .stat-card { background: var(--bg2); border: 1px solid var(--border); padding: 14px; border-radius: 5px; }
+        .stat-card b { display: block; font-size: 25px; color: var(--accent); }
+        .stat-card p { margin: 5px 0 0; font-size: 12px; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+        .toolbar input[type=search] { flex: 1; min-width: 160px; padding: 7px; }
+        #navigation { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--border); }
+        #navigation button { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+        #navigation button[aria-pressed=true] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+        .achievement { border-bottom: 1px solid var(--border); padding: 12px 0; }
+        .achievement > summary::before { content: '▸'; color: var(--text-muted); }
+        .achievement[open] > summary::before { content: '▾'; }
+        .achievement summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; }
+        .achievement summary strong { flex: 1; min-width: 190px; }
+        .achievement p, .collectible p { font-size: 13px; margin: 6px 0; }
+        .achievement .detail { padding: 8px 0 0; }
+        progress { accent-color: var(--accent); width: 100%; height: 7px; display: block; margin: 8px 0 0; }
+        .collectible { border-bottom: 1px solid var(--border); padding: 12px 0; }
+        .collectible h3 { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 14px; margin: 0; }
+        .collectible .badge { margin-left: 6px; }
+        .evidence { font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; margin-top: 8px; }
+        .evidence summary { text-decoration: underline; }
+        .callout { border-left: 3px solid var(--accent); padding: 8px 12px; background: var(--bg2); font-size: 13px; margin: 12px 0; }
+        #next-steps { padding-left: 22px; font-size: 13px; }
+        #next-steps li { padding: 5px 0; }
+        .editing-control { font-size: 13px; padding: 10px 14px; border-top: 1px solid var(--border); }
+        .editing-off .module-row select { display: none; }
+        .editing-off .module-row { grid-template-columns: 1fr; }
+        .module-row .evidence { grid-column: 1 / -1; }
+        .module-row label { overflow-wrap: anywhere; }
+        #working-note { color: var(--warn); font-size: 13px; }
+        #progress-context { font-size: 13px; }
+        a { color: var(--accent); }
+        .footer-note { font-size: 12px; color: var(--text-muted); margin-top: 16px; }
+
         @media (max-width: 600px) {
             body { padding: 10px; }
             h1 { font-size: 20px; }
@@ -217,9 +270,9 @@
         }
     </style>
 </head>
-<body>
-    <h1>Ghost Song Save Editor</h1>
-    <p class="subtitle">Edit nanogel, health, stats and every other value in a Ghost Song <code>SaveData</code> file. Everything runs in your browser; the file is never uploaded.</p>
+<body class="editing-off">
+    <h1>Ghost Song Progress Checker</h1>
+    <p class="subtitle">See what you have, what is missing, and where to go next. Includes optional save editing. Your file stays in this browser.</p>
 
     <div id="dropzone">
         <strong>Drag &amp; drop your SaveData file here</strong>
@@ -231,25 +284,96 @@
     <div id="error-msg" class="msg error"></div>
     <div id="status-msg" class="msg"></div>
 
-    <div id="quick-panel" class="panel">
+    <section id="session-panel" class="panel" aria-label="Loaded save">
         <div class="panel-header">
             <span class="filename" id="filename-label"></span>
-            <div class="actions">
+            <div class="actions" id="slot-controls">
                 <label for="slot-select" class="muted">Save slot</label>
                 <select id="slot-select"></select>
                 <button class="secondary" id="load-another-btn">Load another file</button>
             </div>
         </div>
+        <nav id="navigation" aria-label="Progress sections">
+            <button data-view="overview" aria-pressed="true">Overview</button>
+            <button data-view="achievements" aria-pressed="false">Achievements</button>
+            <button data-view="collectibles" aria-pressed="false">Collectibles</button>
+            <button data-view="pasha" aria-pressed="false">Pasha</button>
+            <button data-view="editor" aria-pressed="false">Save editor</button>
+            <button data-view="all" aria-pressed="false">All sections</button>
+        </nav>
+        <div id="collectible-jumps" class="toolbar" hidden style="padding:0 14px;font-size:13px"><a href="#cores-panel">Healing cores</a> · <a href="#melee-panel">Weapons</a> · <a href="#modules-panel">Modules</a></div>
+        <div class="editing-control"><label><input type="checkbox" id="enable-editing"> Enable save editing</label> <span class="muted" id="mode-label">Read-only · no values can be changed</span></div>
+    </section>
+
+    <section id="overview-panel" class="panel" data-view="overview" aria-labelledby="overview-heading">
+        <div class="panel-header"><h2 id="overview-heading" style="margin:0">Your progress</h2><button id="report-btn" class="secondary">Download progress report</button></div>
+        <div class="panel-body">
+            <p id="progress-context"></p>
+            <p id="working-note" hidden>Preview includes unsaved edits. Reload the original file to check your in-game progress.</p>
+            <div id="progress-summary" class="dashboard-grid"></div>
+            <div class="callout">Achievement targets in build 1.2.12d: 39 modules, 8 collectible weapons and 7 healing cores. Complete collection: 40 modules, 9 weapons and 8 core sources. Reaching a target here does not confirm Steam awarded it.</div>
+            <h3>Where to go next</h3><ul id="next-steps"></ul>
+            <details class="footer-note"><summary>How reliable is this?</summary><p>Ownership, pickup flags and counters are read from the selected slot. Locations and achievement checks were inspected in the supplied Steam build 1.2.12d. Another build, edited flags or a New Game Plus cycle can differ. A missing field is “Unknown”, never zero. The file’s shared unlock records belong to all slots and do not replace Steam’s achievement history.</p></details>
+        </div>
+    </section>
+
+    <section id="achievements-panel" class="panel" data-view="achievements" aria-labelledby="achievements-heading">
+        <div class="panel-header"><h2 id="achievements-heading" style="margin:0">Achievements</h2><span id="achievement-count" class="muted" aria-live="polite"></span></div>
+        <div class="panel-body">
+            <p class="muted">All 42 goals. “Condition met” means the selected slot has supporting evidence. Some goals are only checked when you perform the action in-game. Expand a goal for its next step and evidence.</p>
+            <div class="toolbar"><input id="achievement-search" type="search" aria-label="Search achievements" placeholder="Search achievement or location…"><select id="achievement-status" aria-label="Achievement status"><option value="all">All goals</option><option value="todo">Still to check</option><option value="met">Condition met</option><option value="unknown">Unknown / session only</option><option value="blocked">Run requirement failed</option></select></div>
+            <div id="achievement-list"></div><p id="achievement-empty" class="muted" hidden>No goals match these filters.</p>
+            <p class="footer-note">“Unlock recorded · shared” is a positive record in this file, across all slots. A blank record does not prove an achievement is locked. Check Steam for the authoritative unlocked list.</p>
+        </div>
+    </section>
+
+    <section id="cores-panel" class="panel" data-view="collectibles" aria-labelledby="cores-heading">
+        <div class="panel-header"><h2 id="cores-heading" style="margin:0">Healing cores</h2><span id="core-count" class="muted"></span></div>
+        <div class="panel-body"><p id="core-summary"></p><p class="muted">The eight source flags describe this world’s pickups. The inventory total can include starting or carried-over cores; it need not equal collected sources. New Game Plus can reset world pickups while keeping the total.</p><div class="toolbar"><label class="muted"><input type="checkbox" id="core-missing"> Only uncollected / unknown</label></div><div id="core-list"></div></div>
+    </section>
+
+    <section id="melee-panel" class="panel" data-view="collectibles" aria-labelledby="melee-heading">
+        <div class="panel-header"><h2 id="melee-heading" style="margin:0">Melee &amp; alternate weapons</h2><span id="melee-count" class="muted"></span></div>
+        <div class="panel-body"><p class="muted">Nine collectible alternate weapons, including the Kinzy Axe. The starting melee attack is separate. Readiness checks for eight owned weapons in this build.</p><div class="toolbar"><input type="search" id="melee-search" aria-label="Search weapons" placeholder="Search weapon or location…"><label class="muted"><input type="checkbox" id="melee-missing"> Only missing / unknown</label></div><div id="melee-list"></div></div>
+    </section>
+
+    <div id="quick-panel" class="panel" data-view="editor">
+        <div class="panel-header"><h2 style="margin:0">Resources &amp; stats</h2><span class="muted">Enable editing above to change values</span></div>
         <div class="panel-body" id="quick-body"></div>
     </div>
 
-    <div id="all-panel" class="panel">
+    <section id="modules-panel" class="panel" data-view="collectibles" aria-labelledby="modules-heading">
+        <div class="panel-header">
+            <h2 id="modules-heading" style="margin:0">Modules</h2>
+            <span id="module-count" class="muted" aria-live="polite"></span>
+        </div>
+        <div class="panel-body">
+            <p class="muted">Names and inventory order verified against build 1.2.12d. Search every location below. Enable editing above to change ownership, then equip in-game. Unequip before removing ownership.</p>
+            <div class="module-tools">
+                <input id="module-filter" type="search" aria-label="Search modules" placeholder="Search names or locations…">
+                <label class="muted"><input id="missing-only" type="checkbox"> Only missing / unknown</label>
+            </div>
+            <div id="module-list"></div><p id="module-empty" class="muted" hidden>No modules match these filters.</p>
+        </div>
+    </section>
+
+    <section id="pasha-panel" class="panel" data-view="pasha" aria-labelledby="pasha-heading">
+        <div class="panel-header"><h2 id="pasha-heading" style="margin:0">Pasha’s encounters</h2></div>
+        <div class="panel-body">
+            <p id="run-summary"></p>
+            <p class="muted">Read-only guidance from the saved day and dialogue flags. Finish each conversation, then change rooms. Eligibility does not guarantee an immediate appearance: room-change timers and other game state can also apply.</p>
+            <div id="pasha-locations"></div>
+            <details><summary>Saved dialogue flags</summary><div id="pasha-flags"></div></details>
+        </div>
+    </section>
+
+    <div id="all-panel" class="panel" data-view="editor">
         <div class="panel-header">
             <h2 style="margin:0">All values</h2>
             <span class="muted" id="all-count"></span>
         </div>
         <div class="panel-body">
-            <input type="search" id="filter" placeholder="Filter by key name, e.g. stats, progress, inventory&hellip;" autocomplete="off">
+            <input type="search" id="filter" aria-label="Filter all values" placeholder="Filter by key or known name, e.g. Scatterburst, Pasha, stats&hellip;" autocomplete="off">
             <div id="tree"></div>
         </div>
     </div>
@@ -264,7 +388,7 @@
         </div>
     </div>
 
-    <div id="tips" class="panel">
+    <div id="tips" class="panel" data-view="editor">
         <div class="panel-header"><h2 style="margin:0">Before you replace the file</h2></div>
         <div class="panel-body">
         <ul class="tips">
@@ -872,6 +996,7 @@
             if (input.length > 1000) throw new Error('Text is too long');
             leaf.value = input;
         }
+        state.downloaded = false;
     }
 
     function changedLeaves() {
@@ -901,12 +1026,14 @@
         }
         el.value = leafText(leaf);
         el.title = leafType(leaf);
+        el.disabled = !editingEnabled;
         if (!info || !info.editable) {
-            el.disabled = el.tagName === 'SELECT';
+            el.disabled = !editingEnabled || el.tagName === 'SELECT';
             el.readOnly = true;
             el.title += ' (read-only: changing this would corrupt the file structure)';
         } else {
             el.addEventListener('change', () => {
+                if (!editingEnabled) { syncLeaf(leaf); return; }
                 try {
                     setLeaf(leaf, el.value);
                     el.classList.remove('invalid');
@@ -938,8 +1065,8 @@
 
     // ─── Quick edit ───────────────────────────────────────────────────────────
 
-    const STAT_LABELS = { Health: 'Health', Spirit: 'Spirit', Ammo: 'Ammo', GunPower: 'Gun power',
-                          Volatility: 'Volatility', Vigor: 'Vigor', Luck: 'Luck' };
+    const STAT_LABELS = { Health: 'Health', Spirit: 'Energy (Spirit)', Ammo: 'Ammo', GunPower: 'Gun power',
+                          Volatility: 'Resolve (Volatility)', Vigor: 'Vigor', Luck: 'Luck' };
 
     const QUICK = [
         { group: 'Resources', fields: [
@@ -950,24 +1077,25 @@
         { group: 'Vitals', fields: [
             { key: 'health', label: 'Health' },
             { key: 'healthmax', label: 'Max health' },
-            { key: 'spirit', label: 'Spirit' },
+            { key: 'spirit', label: 'Energy (Spirit)' },
             { key: 'ammo', label: 'Ammo' },
             { key: 'stamina', label: 'Stamina' },
             { key: 'shieldhealth', label: 'Shield' },
             { key: 'shieldhealthmax', label: 'Max shield' },
         ]},
-        { group: 'Base stats', fields: Object.entries(STAT_LABELS).map(([m, label]) => ({ key: 'basestats', member: m, label })) },
+        { group: 'Base stats', fields: Object.entries(STAT_LABELS).map(([m, label]) => ({ key: 'basestats', member: m, label,
+            hint: m === 'Luck' ? () => 'Green Godseed increases Luck when used. Frenzied Shell uses a fixed 3% roll and ignores Luck.' : null })) },
         { group: 'Levelling & gear', fields: [
             { key: 'xp', member: 'RequiredNano', label: 'Nanogel needed for next level' },
             { key: 'xp', member: 'Multiplier', label: 'Level cost multiplier' },
             { key: 'gunlvl', label: 'Gun level' },
             { key: 'modulemax', label: 'Module max' },
-            { key: 'socketsmax', label: 'Sockets max' },
+            { key: 'socketsmax', label: 'Available module power (Sockets max)' },
         ]},
         { group: 'Run', fields: [
             { key: 'timeplayed', label: 'Time played (seconds)', hint: secondsHint },
             { key: 'timesdied', label: 'Times died' },
-            { key: 'difficulty', label: 'Difficulty' },
+            { key: 'difficulty', label: 'Difficulty', hint: leaf => leaf.value === 1 ? 'Original' : leaf.value === 0 ? 'Explorer' : 'Unknown difficulty value' },
         ]},
     ];
 
@@ -981,7 +1109,7 @@
     function detectSlots() {
         const slots = new Set();
         for (const { key } of state.entries) {
-            const m = key.match(/^(?:nanites|healthmax|basestats)(\d+)$/);
+            const m = key.match(/^(?:nanites|healthmax|basestats|day|wmacquired|inventory)(\d+)$/);
             if (m) slots.add(m[1]);
         }
         return [...slots].sort((a, b) => a - b);
@@ -1004,6 +1132,7 @@
     function renderQuick() {
         const body = document.getElementById('quick-body');
         body.innerHTML = '';
+        pruneInputs();
         const slot = document.getElementById('slot-select').value;
         let shown = 0;
         for (const { group, fields } of QUICK) {
@@ -1043,6 +1172,541 @@
         if (!shown) {
             body.innerHTML = '<p class="muted">No well-known fields found for this slot. Use "All values" below.</p>';
         }
+    }
+
+    // ─── Build 1.2.12d module catalog and Pasha guidance ───────────────────────
+    // IDs are save-array indices, not screen columns. Hidden prototype blasters
+    // (6, 8, 10, 16, 17) and the dummy equipped entry (18) are intentionally absent.
+    // Verified from modulescript, BillInventory, Pasha spawners and native code.
+    const MODULE_GROUPS = [
+        { key: 'wm', title: 'Blaster modules', modules: [
+            [0, 'Cloudburst Rifle', 'Liselle Tal in Lupoto.'],
+            [1, 'The Heartbreaker', 'Leaf, the Coldwater Prince, in Sap-Stone. The added blaster occupies the second slot.'],
+            [2, 'Scatterburst', 'Bill at the Crash Site · 1,000 Nanogel. Third slot, before Chill Crumbler.'],
+            [3, 'Chill Crumbler', 'Bradley Wells in the pool in Six-Finger Woods. Fourth slot.'],
+            [4, 'Skel Planter', 'Mabec’s shop.'],
+            [5, 'Firefly', 'Mabec’s shop.'],
+            [7, 'Skab Device', 'Rote-Shotter.'],
+            [9, 'Flowersong', 'Spikemouth’s room in Stoffbloom.'],
+            [11, 'Plasma Burner', 'Leggett in Lupoto.'],
+            [12, 'Coburn Launcher', 'Blake’s Stroll, west of the Crash Site.'],
+            [13, 'Blob-Bloom', 'Fome, the Green Blob, in Lupoto.'],
+            [14, 'Blob-Bloom H', 'Vek, the Red Blob, in Stumbledeep.'],
+            [15, 'The Sprinkler', 'Roslock Drift Alpha, beyond the worker corridor.'],
+        ]},
+        { key: 'mm', title: 'Suit modules', modules: [
+            [0, 'Heart of Fire'], [1, 'Heart of Strength'], [2, 'Heart of Steadiness'],
+            [3, 'Clutcher'], [4, 'Five-Fingers'], [5, 'Nano-Boost'],
+            [6, 'Berserker Device'], [7, 'Distant Star'], [8, 'Molly’s Tweak'],
+            [9, 'HeatHawk'], [10, 'Backlash'], [11, 'Ogre Device'],
+            [12, 'Summer-Step'], [13, 'Gunner’s Harmony'], [14, 'Ramstone Decoy-Dash'],
+            [15, 'Fishmaster’s Glow'], [16, 'Lord’s Insight'], [17, 'Extra Jump'],
+        ]},
+        { key: 'sm', title: 'Suit modules · third row', modules: [
+            [0, 'Liferun'], [1, 'Flower-Step'], [2, 'Whistle Shock'],
+            [3, 'Adam’s Tweak'], [4, 'Suntouch'], [5, 'Robotic Heart'],
+            [6, 'Frenzied Shell', 'Roslock Workers · 3% per kill, unaffected by Luck. Farm the Nano-Boost room in Roslock Drift Beta, or the corridor right of The Sprinkler room in Alpha.'],
+            [7, 'Volatile Shell'], [8, 'Hardened Shell'],
+        ]},
+    ];
+    // Build-specific progress knowledge. No save fields are written by this model.
+    // Scene IDs and native checks are documented in ghostsong-save-editor.docs.md.
+    let editingEnabled = false;
+    let currentView = 'overview';
+    const MODULE_ROUTES = {
+        wm: {
+            0: ['Lupoto', 'Defeat Liselle Tal, the Lost Hunter, in the surface clearing.', 'doopy3 · pickup 0'],
+            1: ['Sap-Stone', 'Defeat Leaf, the Coldwater Prince. The Heartbreaker is the added second blaster slot.', 'saps10 · pickup 103'],
+            2: ['Crash Site · Bill', 'Buy for 1,000 Nanogel after returning one ship part. Third blaster slot, before Chill Crumbler.', 'BillInventory[11] · world state 59'],
+            3: ['Six-Finger Woods', 'Defeat Bradley Wells in the pool.', 'misty8 · pickup 88'],
+            4: ['Norberg Laboratory · Mabec', 'Buy for 1,000 Nanogel after returning one ship part. Find Mabec through the elevator shaft.', 'JuliaInventory[12] · world state 59'],
+            5: ['Norberg Laboratory · Mabec', 'Buy for 5,000 Nanogel after returning two ship parts.', 'JuliaInventory[9] · world state 60'],
+            7: ['Rote-Shotter', 'Reach the far upper-left room and collect the module.', 'leaf6 · pickup 47'],
+            9: ['Stoffbloom', 'Defeat Spikemouth, the Hateful, and collect the drop.', 'fa4 · pickup 41'],
+            11: ['Lupoto', 'Defeat Leggett, the Deserter, after obtaining dash; return to his room if needed.', 'dp13 · pickup 93 · requires miscworldstate[2]'],
+            12: ['Blake’s Stroll', 'Head west from the Crash Site and collect it from the passage.', 'gm1 · pickup 22'],
+            13: ['Lupoto', 'Defeat Fome, the Green Blob.', 'dpb4 · pickup 91'],
+            14: ['Stumbledeep', 'Defeat Vek, the Red Blob, in the deep room.', 'sfdeep1 · pickup 92'],
+            15: ['Roslock Drift Alpha', 'Collect it beyond the worker corridor, near the corpse. Continue Mutt’s route to reach this part of Alpha.', 'rdalpha4 · pickup 82'],
+        },
+        mm: {
+            0: ['Roslock Drift Alpha', 'Continue Mutt’s encounters through the worker gauntlet, then collect it in the far room.', 'rdalpha5 · pickup 80'],
+            1: ['Crash Site', 'Climb the right-hand wall to the cave and collect the module.', 'gm3 · pickup 73'],
+            2: ['Norberg Laboratory · Mabec', 'Buy for 1,250 Nanogel from the elevator shop.', 'JuliaInventory[2]'],
+            3: ['Huttle Drop', 'Explore the concealed side cave near Slovenmuck, then its inner hidden chamber.', 'ed2b · pickup 5'],
+            4: ['Blake’s Stroll', 'Defeat Elias, the Head Breaker, in the side area.', 'ndp8 · pickup 23'],
+            5: ['Roslock Drift Beta', 'Take the long bottom-right branch to the room with Roslock Workers.', 'rdb6 · pickup 32'],
+            6: ['Junkpit', 'Defeat Kellunhelk, the Cracked Engineer. Bring the Curious Gizmo or carry a ship part to make the encounter available.', 'jp3d · pickup 84 · miniboss 13'],
+            7: ['Crash Site · Bill', 'Buy for 1,000 Nanogel after returning two ship parts.', 'BillInventory[12] · world state 60'],
+            8: ['Crash Site · Molly', 'Keep finishing Molly’s conversations between deliveries. She gives this module during her camp dialogue.', 'Molly dialogue reward · miscworldstate[22]'],
+            9: ['Lupoto', 'Explore the room beyond Fome’s chamber.', 'dpb5 · pickup 28'],
+            10: ['Norberg Laboratory', 'Explore the upper-right side chamber of the laboratory area.', 'dp19 · pickup 27'],
+            11: ['Junkpit', 'Defeat Elsom, the Ogre, on the route to the Big Bot.', 'jp14 · pickup 15 · miniboss 4'],
+            12: ['Sap-Stone', 'Follow Devilwink, the Vanished, and defeat her in the next encounter.', 'saps2 · Devilwink reward'],
+            13: ['Norberg Laboratory · Mabec', 'Buy for 800 Nanogel from the elevator shop.', 'JuliaInventory[6]'],
+            14: ['Lupoto · Rime', 'Return to Rime late in the repair quest and finish her conversations for the gift.', 'Rime dialogue reward'],
+            15: ['Lupoto / Rote-Shotter', 'Fight the blue humanoid enemies, including Gumbelly. This is an enemy drop; re-enter rooms to keep trying.', 'Enemy drop · mm[15]'],
+            16: ['Crash Site · Bill', 'Buy for 1,000 Nanogel.', 'BillInventory[4]'],
+            17: ['Norberg Laboratory · Mabec', 'Buy for 3,500 Nanogel after returning three ship parts.', 'JuliaInventory[7] · world state 61'],
+        },
+        sm: {
+            0: ['Six-Finger Woods', 'Explore the far-left end of the upper room.', 'misty4 · pickup 51'],
+            1: ['Lupoto / Rote-Shotter', 'Fight the blue humanoid enemies for this random drop.', 'Enemy drop · sm[1]'],
+            2: ['Six-Finger Woods', 'Defeat Old Singer. She can retreat between encounters; keep pursuing her through the woods.', 'pickup 34 · miniboss 10'],
+            3: ['Lupoto', 'Explore the far lower-left room.', 'zh1 · pickup 87'],
+            4: ['Roslock Drift Gamma', 'Defeat Henriette Scuttle, the Changed One.', 'gamma4 · pickup 90 · miniboss 15'],
+            5: ['Huttle Drop', 'Collect the module in the room below Lua. There is also a scene pickup in Stumbledeep.', 'ed2 · pickup 4; sf5 · pickup 76'],
+            6: ['Roslock Drift Beta / Alpha', 'Roslock Workers · 3% per kill, unaffected by Luck. Farm the Nano-Boost room in Beta, or the corridor right of The Sprinkler room in Alpha. Green Godseed does not improve this roll.', 'RoslockWorker.SpawnLoot · sm[6] · rdb6 / rdalpha3'],
+            7: ['Roslock Drift Alpha · the pit', 'Fight the Roslock creatures in the pit beneath the breakable floor near Mutt’s door. A random enemy drop, separate from Frenzied Shell.', 'Pit enemy drop · sm[7]'],
+            8: ['Roslock Drift Alpha · the pit', 'Keep fighting the pit’s Roslock creatures for this separate random drop.', 'Pit enemy drop · sm[8]'],
+        },
+    };
+    // Keep the editor and checker on one catalog; names and order have one source.
+    for (const group of MODULE_GROUPS) for (const mod of group.modules) {
+        const route = MODULE_ROUTES[group.key][mod[0]];
+        mod[2] = route[0] + ' · ' + route[1];
+    }
+    const CORE_SOURCES = [
+        { id: 'belle', name: 'Lupoto · Belle', where: 'Defeat Belle, the Wanderer, and collect the core.', key: 'itempickupsvalue', index: 1, scene: 'dp3b · pickup 1' },
+        { id: 'pond', name: 'Lupoto · pond bot', where: 'From the Motivator area, take the upper-right passage through the breakable wall. Interact with the bot in the water.', key: 'miscworldstate', index: 1, scene: 'dp9 · corebotpickup.DataNumber 1' },
+        { id: 'huttle', name: 'Huttle Drop', where: 'Take the room east of the Huttle Drop Big Bot / save point and collect the core.', key: 'itempickupsvalue', index: 6, scene: 'ed3 · pickup 6' },
+        { id: 'beta-entrance', name: 'Roslock Drift Beta · entrance', where: 'Check the upper-left side of the first room in Beta, before descending farther.', key: 'itempickupsvalue', index: 24, scene: 'rdb1 · pickup 24' },
+        { id: 'beta-side', name: 'Roslock Drift Beta · left side passage', where: 'Descend from the entrance core, then take the branch to the left. Follow it to the end of the small side room.', key: 'itempickupsvalue', index: 30, scene: 'rdb2b · pickup 30' },
+        { id: 'junkpit', name: 'Junkpit · concealed chamber', where: 'On the level above Henriette’s arena, break the floor into the hidden cave and explore the side chamber.', key: 'itempickupsvalue', index: 67, scene: 'jps4 · pickup 67' },
+        { id: 'sap-stone', name: 'Sap-Stone', where: 'Explore the lower-left chamber and collect the core.', key: 'itempickupsvalue', index: 79, scene: 'saps1 · pickup 79' },
+        { id: 'bill', name: 'Crash Site · Bill’s shop', where: 'Buy for 2,000 Nanogel after returning two ship parts.', key: 'billstock', index: 9, shop: true, scene: 'BillInventory[9] · world state 60' },
+    ];
+    const MELEE = [
+        { index: 1, name: 'Blast Shield', region: 'Crash Site · Bill', where: 'Buy for 200 Nanogel.', evidence: 'BillInventory[0]' },
+        { index: 11, name: 'Hypersledge', region: 'Roslock Drift Gamma', where: 'Follow Mutt’s encounters from Alpha through Stoffbloom and back to Alpha. Find him again in Gamma and collect his hammer.', evidence: 'gamma2 · pickup 81' },
+        { index: 12, name: 'Hulking Fist', region: 'Junkpit approach', where: 'Collect it on the early route into Junkpit.', evidence: 'lands5 · pickup 71' },
+        { index: 26, name: 'Dolly', region: 'Norberg Laboratory · Mabec', where: 'Defeat Dolly, then buy the weapon at Mabec’s elevator shop for 1,500 Nanogel.', evidence: 'JuliaInventory[10] · requires miscworldstate[30]' },
+        { index: 32, name: 'Painwheel', region: 'Six-Finger Woods', where: 'Search beneath the small spiked platforms on the route across the woods.', evidence: 'misty9 · pickup 55' },
+        { index: 33, name: 'Hazard Blade', region: 'Junkpit', where: 'Explore the hidden room beside Kellunhelk’s chamber. The weapon pickup does not require defeating that boss.', evidence: 'jp3e · pickup 18' },
+        { index: 34, name: 'Hudson Goodshot', region: 'Sap-Stone · Gili', where: 'Finish Gili’s encounters and the Hector storyline, then return to her in upper Sap-Stone for the reward.', evidence: 'inventory[34] · internal name Goldglum / gilisgun · miscworldstate[35]' },
+        { index: 35, name: 'Magma Spear', region: 'Roslock Drift Beta', where: 'Search the side room in the upper part of Beta.', evidence: 'rdb1c · pickup 31' },
+        { index: 68, name: 'Kinzy Axe', region: 'Toler-Under-Foot', where: 'From the Huttle Drop save room, go east and descend to the lower opening near the Junkpit route. Continue through Toler-Under-Foot and defeat Xorogon, the Undefeated, for the axe.', evidence: 'ed3 → ed6 → ed7 → ed8 · pickup 102 · added content' },
+    ];
+
+    // Only finite, non-negative saved numbers are interpreted as counters/flags.
+    function savedNumber(key, index) {
+        const leaf = index === undefined ? quickLeaf('', { key }) : listLeaf(key, index);
+        return leaf && typeof leaf.value === 'number' && Number.isFinite(leaf.value) && leaf.value >= 0 ? leaf.value : null;
+    }
+    function savedBool(key) {
+        const leaf = quickLeaf('', { key });
+        return leaf && typeof leaf.value === 'boolean' ? leaf.value : null;
+    }
+    function savedText(key) {
+        const entry = state.byKey.get(key), value = entry && deref(state.doc, entry.value);
+        return value && value.type === RT.BinaryObjectString ? value.value : null;
+    }
+    function tally(values) {
+        return { owned: values.filter(v => v === true).length, missing: values.filter(v => v === false).length,
+            unknown: values.filter(v => v === null).length, total: values.length };
+    }
+    function sourceState(source, slot) {
+        const n = savedNumber(source.key + slot, source.index);
+        if (n === null) return null;
+        // Negative (unlimited/disabled) stock is rejected by savedNumber.
+        return source.shop ? n === 0 ? true : n === 1 ? false : null : n > 0;
+    }
+    const ACHIEVEMENTS = [
+        ['prog01', 'You’re Not Alone', 'Story', 'Reach the Crash Site and meet the crew.', 'misc', 9],
+        ['prog02', 'Part One', 'Story', 'Return your first ship part to Gambler at the Crash Site.', 'parts', 1],
+        ['prog03', 'Part Two', 'Story', 'Return a second ship part and finish the repair sequence.', 'parts', 2],
+        ['prog04', 'Part Three', 'Story', 'Return a third ship part. Finish Pasha’s camp conversation before the next delivery.', 'parts', 3],
+        ['prog05', 'Part Four', 'Story', 'Return a fourth ship part.', 'parts', 4],
+        ['prog06', 'Part Five', 'Story', 'Return the fifth ship part.', 'parts', 5],
+        ['prog07', 'Ready To Fly', 'Story', 'Finish the final repair sequence with Gambler.', 'parts', 5],
+        ['prog08', 'Please Sit Down', 'Story', 'Defeat the hostile Big Bot in Lesker-Eight Laboratory after repairing Gambler.', 'finalbot'],
+        ['prog09', 'Safely Away', 'Story', 'Complete the ending and help the crew leave.', 'finish'],
+        ['en01', 'The Crusher', 'Bosses', 'Defeat Dolly. Look around Blake’s Stroll and its upper passages.', 'boss', 11],
+        ['en02', 'The Learned Hunter', 'Bosses', 'Defeat Henriette in lower Junkpit.', 'boss', 9],
+        ['en03', 'The Changed One', 'Bosses', 'Defeat Henriette again in Roslock Drift Gamma.', 'boss', 15],
+        ['en04', 'The Ogre', 'Bosses', 'Defeat Elsom in Junkpit, on the way to its Big Bot.', 'boss', 4],
+        ['en05', 'Old Singer', 'Bosses', 'Defeat Old Singer in Six-Finger Woods; pursue her between encounters.', 'boss', 10],
+        ['en06', 'The Cracked Engineer', 'Bosses', 'Defeat Kellunhelk in Junkpit. Bring the Curious Gizmo or carry a ship part to reveal the encounter.', 'boss', 13],
+        ['en07', 'The Poet', 'Bosses', 'Defeat Kika in Huttle Drop.', 'boss', 3],
+        ['en08', 'The Red Blob', 'Bosses', 'Defeat Vek in Stumbledeep. Fome in Lupoto is a different boss.', 'boss', 17],
+        ['exp01', 'Fully Equipped', 'Exploration', 'Own at least 39 modules. Use the module checklist for all 40 available in this build.', 'modules', 39],
+        ['exp02', 'Readiness', 'Exploration', 'Own at least 8 collectible alternate weapons. There are 9 in this build, including Kinzy Axe.', 'weapons', 8],
+        ['exp03', 'Big Bots', 'Exploration', 'Find the six friendly Big Bots in Lupoto, Stoffbloom, Huttle Drop, Junkpit, Stumbledeep and Ekman’s Crossing.', 'bots', 6],
+        ['exp04', 'Feeling Healthy', 'Exploration', 'Have at least 7 healing cores in the saved inventory. See the eight source locations below.', 'cores', 7],
+        ['exp05', 'The Cut Machine', 'Exploration', 'Obtain Relic’s Pebble of Perspective. Use it above the Crash Site and shut down to enter the special visit; finish the visit and leave.', 'cut'],
+        ['npc01', 'Familiar', 'People', 'Finish Pasha’s camp dialogue after three deliveries, then visit her hidden Stoffbloom pod before returning a fourth part. The Pasha tab shows saved prerequisites.', 'misc', 64],
+        ['npc02', 'Charley', 'People', 'Reach the far end of Ekman’s Crossing and interact with Charley. Extra air jumps help with the long crossing.', 'charley'],
+        ['npc03', 'Clawing At The Roots Of A Cosmic Order', 'People', 'Finish conversations with Saymund at eight separate encounter entries. Revisit him around Lupoto, the Crash Site, Stoffbloom, Junkpit, Stumbledeep and Beta as the day advances.', 'saymund', 8],
+        ['npc04', 'Retired Explorer', 'People', 'Follow Mutt’s encounters through Alpha, Stoffbloom, Alpha again and Gamma. Visit his final resting place.', 'mutt'],
+        ['npc05', 'Good Friends', 'People', 'Keep talking to the crew between deliveries. This build checks Bill, Pasha, Raven, Molly and ownership of Molly’s horse gift; expand the evidence for each requirement.', 'crew'],
+        ['npc06', 'Slow Down', 'People', 'Return to Relic in Lupoto late in the repair quest. Finish the conversation and receive the Pebble of Perspective.', 'misc', 46],
+        ['npc07', 'It Was An Accident', 'People', 'Follow Gili’s encounters in Lupoto, Ekman’s Crossing and Sap-Stone. Resolve the Hector storyline and return for her weapon gift.', 'misc', 35],
+        ['npc08', 'Molly The Artist', 'People', 'Keep finishing Molly’s camp dialogue between deliveries. Talk to her after the last repair to receive her horse gift.', 'misc', 44],
+        ['npc09', 'The Voice From The Elevator', 'People', 'Reach Mabec’s shop through the Norberg Laboratory elevator shaft.', 'misc', 18],
+        ['com01', 'Many Enemies', 'Combat', 'Defeat 1,000 enemies. The saved counter tracks progress.', 'counter', 'enemieskilled', 1000],
+        ['com02', 'Feeling Better', 'Combat', 'Heal 100 times. The saved counter tracks progress.', 'counter', 'timeshealed', 100],
+        ['com03', 'Bug Slayer', 'Combat', 'Stay in the Roslock Drift Alpha pit and survive its recurring Roslock waves. This build checks a local spawn counter (34), which resets with the encounter; total enemies killed is not this counter.', 'session'],
+        ['misc01', 'Party Trick', 'Other', 'Keep a thrown Painwheel circling by jumping over it as it returns. Continue the juggle until the game awards the goal.', 'session'],
+        ['misc02', 'Hardened', 'Other', 'Complete the ending on Original difficulty. This build requires saved difficulty value 1.', 'hardened'],
+        ['misc03', 'You Monster!', 'Other', 'Defeat 12 of the small, passive blue creatures with a pink eye, found around Stoffbloom.', 'innocents', 12],
+        ['misc04', 'Maybe It Was Too Easy', 'Other', 'Finish the game with zero recorded deaths. New Game Plus can carry deaths forward.', 'deathless'],
+        ['misc05', 'Experienced', 'Other', 'Keep levelling at Big Bots. The published goal says level 30; this build’s native unlock check compares saved maximum module power with 30.', 'level', 30],
+        ['misc06', 'Flower Girl', 'Other', 'Grow a Flowersong flower beside an NPC who reacts to it. Mabec is one option; let the reaction finish.', 'session'],
+        ['misc07', 'Very Important', 'Other', 'Move the large piece of junk down the slope in upper Junkpit, near the route into Gamma.', 'session'],
+        ['misc08', 'Make Haste', 'Other', 'Finish within three hours on the in-game timer. New Game Plus can carry the timer forward.', 'haste'],
+    ].map(([id, name, category, guide, rule, a, b], index) => ({ id, name, category, guide, rule, a, b, index }));
+
+    function computeProgress(slot) {
+        const n = (key, index) => savedNumber(key + slot, index);
+        const modules = MODULE_GROUPS.flatMap(group => group.modules.map(([index, name, where]) => {
+            const leaf = listLeaf(group.key + 'acquired' + slot, index);
+            const owned = leaf && typeof leaf.value === 'boolean' ? leaf.value : null;
+            return { group: group.key, index, name, where, owned, evidence: `${group.key}acquired${slot}[${index}]`, route: MODULE_ROUTES[group.key][index] };
+        }));
+        const weapons = MELEE.map(item => ({ ...item, owned: n('inventory', item.index) === null ? null : n('inventory', item.index) > 0 }));
+        const cores = CORE_SOURCES.map(item => ({ ...item, owned: sourceState(item, slot) }));
+        const totals = { modules: tally(modules.map(x => x.owned)), weapons: tally(weapons.map(x => x.owned)), sources: tally(cores.map(x => x.owned)) };
+        const day = n('day');
+        const parts = day !== null && Number.isInteger(day) && day >= 1 && day <= 6 ? day - 1 : null;
+        const finished = savedBool('finishedgame' + slot);
+        const result = (status, text, evidence = [], count = null, target = null) => ({ status, text, evidence, count, target });
+        const countResult = (count, target, label, evidence, unknown = 0) => {
+            const met = count !== null && count >= target;
+            return result(met ? 'met' : count === null || unknown ? 'unknown' : 'progress',
+                count === null ? label + ' unavailable' : `${count.toLocaleString()} / ${target.toLocaleString()} ${label}` + (unknown ? ` · ${unknown} unknown` : ''), evidence, count, target);
+        };
+        const flagResult = (key, index, label) => {
+            const value = n(key, index);
+            return result(value === null ? 'unknown' : value > 0 ? 'met' : 'progress', value === null ? 'Saved condition unavailable' : value > 0 ? label : 'Not recorded in this world', [`${key}${slot}[${index}] = ${value ?? 'unavailable'}`]);
+        };
+        const achievements = ACHIEVEMENTS.map(ach => {
+            let r;
+            switch (ach.rule) {
+                case 'misc': r = flagResult('miscworldstate', ach.a, 'Saved condition met'); break;
+                case 'boss': r = flagResult('minibossvalue', ach.a, 'Defeat recorded'); break;
+                case 'parts': r = countResult(parts === null ? null : Math.min(parts, ach.a), ach.a, 'parts returned', [`day${slot} = ${day ?? 'unavailable'}; days 1–6 map to 0–5 deliveries`]); break;
+                case 'finish': r = result(finished === null ? 'unknown' : finished ? 'met' : 'progress', finished === true ? 'Ending recorded' : finished === false ? 'Ending not recorded' : 'Ending flag unavailable', [`finishedgame${slot} = ${finished ?? 'unavailable'}`]); break;
+                case 'finalbot': r = finished === true ? result('met', 'Ending proves the final encounter was passed', [`finishedgame${slot} = true`]) : result('unknown', 'Final fight completion cannot be established from this slot', [`finishedgame${slot} = ${finished ?? 'unavailable'}`]); break;
+                case 'modules': case 'weapons': {
+                    const t = totals[ach.rule]; r = countResult(t.owned, ach.a, 'owned', [`${t.owned} owned, ${t.missing} missing, ${t.unknown} unknown; ${t.total} catalog entries`], t.unknown); break;
+                }
+                case 'cores': r = countResult(n('inventory', 7), ach.a, 'cores in inventory', [`inventory${slot}[7] = ${n('inventory', 7) ?? 'unavailable'}; separate from the eight world pickup flags`]); break;
+                case 'bots': {
+                    const ids = [0, 1, 2, 3, 5, 6], values = ids.map(i => n('bbicons', i));
+                    r = countResult(values.filter(v => v === 1).length, 6, 'Big Bots found', ids.map((i, j) => `bbicons${slot}[${i}] = ${values[j] ?? 'unavailable'}`), values.filter(v => v === null).length); break;
+                }
+                case 'counter': r = countResult(n(ach.a), ach.b, ach.a === 'timeshealed' ? 'heals' : 'enemies defeated', [`${ach.a}${slot} = ${n(ach.a) ?? 'unavailable'}`]); break;
+                case 'innocents': r = countResult(n('otherdata', 36), 12, 'creatures', [`otherdata${slot}[36] = ${n('otherdata', 36) ?? 'unavailable'}`]); break;
+                case 'level': r = countResult(n('socketsmax'), 30, 'maximum module power (native check)', [`socketsmax${slot} = ${n('socketsmax') ?? 'unavailable'}; status.LevelUp compares this field with 30`]); break;
+                case 'saymund': {
+                    const values = savedList('saymundprogress' + slot).map((_, i) => n('saymundprogress', i));
+                    r = countResult(values.length ? values.filter(v => v !== null && v >= 2).length : null, 8, 'conversations', [`saymundprogress${slot}: count entries >= 2, as in npc_generic.calcsaymund`], values.filter(v => v === null).length); break;
+                }
+                case 'crew': {
+                    const req = [['Bill', 'billprogress', 5, 2], ['Pasha', 'pashaprogress', 9, 2], ['Raven', 'ravenprogress', 4, 2], ['Molly’s horse', 'inventory', 46, 1], ['Molly', 'mollyprogress', 5, 3]];
+                    const states = req.map(([label, key, i, target]) => ({ label, key, i, target, value: n(key, i) }));
+                    r = countResult(states.filter(x => x.value !== null && x.value >= x.target).length, 5, 'crew requirements', states.map(x => `${x.label}: ${x.key}${slot}[${x.i}] = ${x.value ?? 'unavailable'}; needs >= ${x.target}`), states.filter(x => x.value === null).length); break;
+                }
+                case 'hardened': case 'deathless': case 'haste': {
+                    const key = ach.rule === 'hardened' ? 'difficulty' : ach.rule === 'deathless' ? 'timesdied' : 'timeplayed';
+                    const value = n(key), pass = value === null ? null : ach.rule === 'hardened' ? value === 1 : ach.rule === 'deathless' ? value === 0 : value <= 10800;
+                    const text = value === null ? 'Run requirement unavailable' : ach.rule === 'hardened' ? `Difficulty ${value} · requires 1 (Original)` : ach.rule === 'deathless' ? `${value} recorded deaths` : `${Math.floor(value / 3600)}h ${Math.floor(value % 3600 / 60)}m / 3h limit`;
+                    r = result(pass === false ? 'blocked' : pass === null ? 'unknown' : finished === true ? 'met' : 'progress', text + (pass === true && finished !== true ? ' · finish still required' : ''), [`${key}${slot} = ${value ?? 'unavailable'}`, `finishedgame${slot} = ${finished ?? 'unavailable'}`, `newgameplus${slot} = ${n('newgameplus') ?? 'unavailable'}; counters can carry forward`]); break;
+                }
+                case 'cut': r = result('unknown', n('miscworldstate', 58) > 0 ? 'Scientist conversation recorded; exit award cannot be proven' : 'Visit / exit not established', [`miscworldstate${slot}[58] = ${n('miscworldstate', 58) ?? 'unavailable'}; award occurs in the exit sequence`]); break;
+                case 'charley': r = result('unknown', n('miscworldstate', 54) > 0 ? 'Nearby dialogue recorded; interaction award cannot be proven' : 'Interaction award not established', [`miscworldstate${slot}[54] = ${n('miscworldstate', 54) ?? 'unavailable'}; nearby self-talk is not the achievement flag`]); break;
+                case 'mutt': r = result('unknown', n('itempickupsvalue', 81) > 0 ? 'Mutt’s hammer collected; farewell trigger not proven' : 'Farewell trigger not established', [`itempickupsvalue${slot}[81] = ${n('itempickupsvalue', 81) ?? 'unavailable'}`]); break;
+                default: r = result('unknown', 'Session-only condition · no saved progress counter', ['This condition uses runtime state; a percentage cannot be reconstructed from this save.']);
+            }
+            const recorded = savedNumber('achievementslist', ach.index) === 1;
+            return { ...ach, ...r, recorded };
+        });
+        return { slot, modules, weapons, cores, totals, achievements, parts, day, finished, coreTotal: n('inventory', 7), ngplus: n('newgameplus') };
+    }
+
+    function showView(view) {
+        currentView = view;
+        document.getElementById('collectible-jumps').hidden = view !== 'collectibles' && view !== 'all';
+        for (const panel of document.querySelectorAll('.panel[data-view]')) panel.classList.toggle('view-hidden', view !== 'all' && panel.dataset.view !== view);
+        for (const btn of document.querySelectorAll('#navigation button')) btn.setAttribute('aria-pressed', String(btn.dataset.view === view));
+    }
+    function badge(text, kind = '') {
+        const el = document.createElement('span'); el.className = 'badge ' + kind; el.textContent = text; return el;
+    }
+    function evidenceBlock(lines) {
+        const details = document.createElement('details'); details.className = 'evidence';
+        const summary = document.createElement('summary'); summary.textContent = 'Save evidence / build reference';
+        const body = document.createElement('div');
+        for (const line of lines) { const p = document.createElement('div'); p.textContent = line; body.appendChild(p); }
+        details.append(summary, body); return details;
+    }
+    function collectionCount(t) { return `${t.owned}/${t.total}` + (t.unknown ? ` · ${t.unknown} unknown` : ''); }
+    function collectionBadge(owned, core = false) { return badge(owned === true ? core ? 'Collected' : 'Owned' : owned === false ? core ? 'Uncollected' : 'Missing' : 'Unknown', owned === true ? 'ok' : owned === false ? 'warn' : ''); }
+    function renderCollectibles(model) {
+        const makeCard = (item, kind) => {
+            const card = document.createElement('article'); card.className = 'collectible'; card.dataset.id = kind === 'core' ? item.id : item.index;
+            card.dataset.owned = String(item.owned); card.dataset.search = `${item.name} ${item.region || ''} ${item.where}`.toLowerCase();
+            const h = document.createElement('h3'); h.textContent = item.name + (item.region ? ' · ' + item.region : ''); h.append(collectionBadge(item.owned, kind === 'core'));
+            const route = document.createElement('p'); route.textContent = item.where;
+            card.append(h, route, evidenceBlock(kind === 'core' ? [`${item.key}${model.slot}[${item.index}] = ${savedNumber(item.key + model.slot, item.index) ?? 'unavailable'}`, item.scene] : [`inventory${model.slot}[${item.index}] = ${savedNumber('inventory' + model.slot, item.index) ?? 'unavailable'}`, item.evidence]));
+            return card;
+        };
+        document.getElementById('core-count').textContent = collectionCount(model.totals.sources) + ' world sources collected';
+        document.getElementById('core-summary').textContent = model.coreTotal === null ? 'Saved healing-core inventory unavailable.' : `${model.coreTotal} healing cores in inventory · Feeling Healthy target: 7 · ${model.coreTotal >= 7 ? 'inventory target met' : `${7 - model.coreTotal} more needed for the target`}.`;
+        document.getElementById('core-list').replaceChildren(...model.cores.map(x => makeCard(x, 'core')));
+        document.getElementById('melee-count').textContent = collectionCount(model.totals.weapons) + ' owned';
+        document.getElementById('melee-list').replaceChildren(...model.weapons.map(x => makeCard(x, 'weapon')));
+        filterCollectibles();
+    }
+    function filterCollectibles() {
+        for (const [prefix, searchId] of [['core', null], ['melee', 'melee-search']]) {
+            const missing = document.getElementById(prefix + '-missing').checked;
+            const query = searchId ? document.getElementById(searchId).value.trim().toLowerCase() : '';
+            for (const row of document.querySelectorAll('#' + prefix + '-list .collectible')) row.hidden = (missing && row.dataset.owned === 'true') || !!query && !row.dataset.search.includes(query);
+        }
+    }
+    function renderAchievements(model) {
+        const root = document.getElementById('achievement-list');
+        // Preserve expanded goals when an edit refreshes the progress model.
+        const open = new Set([...root.querySelectorAll('details.achievement[open]')].map(x => x.dataset.id));
+        root.replaceChildren();
+        const names = { met: 'Condition met', progress: 'In progress', unknown: 'Unknown', blocked: 'Run requirement failed' };
+        for (const item of model.achievements) {
+            const card = document.createElement('details'); card.className = 'achievement'; card.dataset.id = item.id; card.dataset.status = item.status;
+            card.dataset.search = `${item.name} ${item.category} ${item.guide}`.toLowerCase(); card.open = open.has(item.id);
+            const summary = document.createElement('summary');
+            const title = document.createElement('strong'); title.textContent = item.name;
+            summary.append(title, badge(names[item.status], item.status === 'met' ? 'ok' : item.status === 'blocked' ? 'err' : item.status === 'progress' ? 'warn' : ''));
+            const progressText = document.createElement('span'); progressText.className = 'muted'; progressText.textContent = item.text; summary.append(progressText);
+            if (item.recorded) summary.append(badge('Unlock recorded · shared', 'ok'));
+            const body = document.createElement('div'); body.className = 'detail';
+            const guide = document.createElement('p'); guide.textContent = item.guide; body.append(guide);
+            if (item.count !== null && item.target !== null) { const bar = document.createElement('progress'); bar.max = item.target; bar.value = Math.min(item.count, item.target); bar.setAttribute('aria-label', item.name + ' saved progress'); body.append(bar); }
+            body.append(evidenceBlock(item.evidence)); card.append(summary, body); root.append(card);
+        }
+        const met = model.achievements.filter(x => x.status === 'met').length, unknown = model.achievements.filter(x => x.status === 'unknown').length;
+        document.getElementById('achievement-count').textContent = `${met}/42 conditions met · ${unknown} unknown`;
+        filterAchievements();
+    }
+    function filterAchievements() {
+        const query = document.getElementById('achievement-search').value.trim().toLowerCase();
+        const status = document.getElementById('achievement-status').value;
+        for (const row of document.querySelectorAll('.achievement')) row.hidden = !!query && !row.dataset.search.includes(query) || (status === 'todo' ? row.dataset.status === 'met' : status !== 'all' && row.dataset.status !== status);
+        document.getElementById('achievement-empty').hidden = !!document.querySelector('.achievement:not([hidden])');
+    }
+    function renderProgress() {
+        if (!state) return;
+        const model = computeProgress(document.getElementById('slot-select').value);
+        const context = [`Slot ${model.slot || 'unavailable'}`, model.parts === null ? 'story day unknown' : `Day ${model.day} · ${model.parts} ship parts returned`];
+        const difficulty = savedNumber('difficulty' + model.slot);
+        if (difficulty === 0 || difficulty === 1) context.push(difficulty === 1 ? 'Original difficulty' : 'Explorer difficulty');
+        if (model.ngplus !== null) context.push(model.ngplus > 0 ? `New Game Plus ${model.ngplus}` : 'First playthrough');
+        const region = savedText('lastsaveregion' + model.slot); if (region) context.push('Last saved: ' + region);
+        document.getElementById('progress-context').textContent = context.join(' · ');
+        document.getElementById('working-note').hidden = changedLeaves().length === 0;
+        const summary = document.getElementById('progress-summary'); summary.replaceChildren();
+        const achMet = model.achievements.filter(x => x.status === 'met').length;
+        for (const [value, title, note] of [[collectionCount(model.totals.modules), 'Modules owned', 'Complete collection: 40'], [collectionCount(model.totals.weapons), 'Weapons owned', 'Complete collection: 9'], [collectionCount(model.totals.sources), 'Core sources collected', `${model.coreTotal ?? 'Unknown'} in inventory · 8 world sources`], [`${achMet}/42`, 'Achievement conditions met', 'Selected-slot evidence · Steam history separate']]) {
+            const card = document.createElement('div'); card.className = 'stat-card'; const b = document.createElement('b'); b.textContent = value; const label = document.createElement('div'); label.textContent = title; const p = document.createElement('p'); p.textContent = note; card.append(b, label, p); summary.append(card);
+        }
+        const next = document.getElementById('next-steps'); next.replaceChildren();
+        const tips = [];
+        if (model.day === 4 && model.achievements.find(x => x.id === 'npc01').status !== 'met') tips.push('Before the next delivery: finish Pasha’s camp dialogue and visit the hidden pod in Stoffbloom. See the Pasha tab.');
+        if (model.day !== null && model.day < 4 && model.achievements.find(x => x.id === 'npc01').status !== 'met') tips.push('Keep finishing crew conversations between deliveries. Pasha’s hidden-pod encounter is available after three parts.');
+        for (const core of model.cores.filter(x => x.owned === false)) tips.push(`Healing core — ${core.name}: ${core.where}`);
+        for (const mod of model.modules.filter(x => x.owned === false)) tips.push(`${mod.name} — ${mod.where}`);
+        for (const weapon of model.weapons.filter(x => x.owned === false)) tips.push(`${weapon.name} — ${weapon.region}: ${weapon.where}`);
+        if (!tips.length) tips.push('No missing collectibles proven by the available fields. Check the achievement list for remaining conditions and unknowns.');
+        for (const tip of tips) { const li = document.createElement('li'); li.textContent = tip; next.append(li); }
+        renderAchievements(model); renderCollectibles(model);
+    }
+    document.getElementById('navigation').addEventListener('click', event => { const button = event.target.closest('button[data-view]'); if (button) showView(button.dataset.view); });
+    document.getElementById('enable-editing').addEventListener('change', event => {
+        editingEnabled = event.target.checked;
+        document.body.classList.toggle('editing-off', !editingEnabled);
+        document.getElementById('mode-label').textContent = editingEnabled ? 'Editing enabled · changes remain a preview until downloaded' : 'Read-only · no values can be changed';
+        // Recreate both quick and lazy tree controls so structural read-only rules persist.
+        inputsByLeaf.clear(); renderQuick(); renderModules(); renderTree(); renderChanges();
+    });
+    document.getElementById('achievement-search').addEventListener('input', filterAchievements);
+    document.getElementById('achievement-status').addEventListener('change', filterAchievements);
+    for (const id of ['core-missing', 'melee-missing']) document.getElementById(id).addEventListener('change', filterCollectibles);
+    document.getElementById('melee-search').addEventListener('input', filterCollectibles);
+    document.getElementById('report-btn').addEventListener('click', () => {
+        const m = computeProgress(document.getElementById('slot-select').value);
+        const body = { catalogBuild: '1.2.12d', slot: m.slot, includesEdits: changedLeaves().length > 0, note: 'Conditions inferred from save; shared unlock records are not Steam history.', ...m };
+        downloadBytes(new TextEncoder().encode(JSON.stringify(body, null, 2)), `ghost-song-progress-slot-${m.slot || 'unknown'}.json`);
+    });
+
+    const PASHA_FLAGS = {
+        1: 'First camp conversation', 2: 'Camp after one part', 3: 'Camp after two parts',
+        4: 'Camp after three parts', 8: 'Stoffbloom, first outdoor conversation',
+        9: 'Lupoto, near the starting area', 10: 'Hidden crashed pod',
+        11: 'Later Stoffbloom conversation', 12: 'Lupoto, by the Relic',
+        13: 'Stoffbloom, repeat visit',
+    };
+
+    function pruneInputs() {
+        for (const [leaf, bindings] of inputsByLeaf) {
+            for (const binding of bindings) if (!binding.el.isConnected) bindings.delete(binding);
+            if (!bindings.size) inputsByLeaf.delete(leaf);
+        }
+    }
+
+    // Honor List<T>._size, never expose spare backing-array capacity as modules.
+    function savedList(key) {
+        const entry = state.byKey.get(key);
+        const rec = entry && deref(state.doc, entry.value);
+        if (!rec) return [];
+        if (!isList(rec)) return rec.values && !rec.memberNames ? expandSlots(rec.values) : [];
+        const size = deref(state.doc, member(rec, '_size'));
+        const items = deref(state.doc, member(rec, '_items'));
+        if (!size || size.kind !== 'prim' || !Number.isInteger(size.value) || size.value < 0 || !items || !items.values) return [];
+        return expandSlots(items.values).slice(0, size.value);
+    }
+
+    function listLeaf(key, index) {
+        const v = deref(state.doc, savedList(key)[index]);
+        return v && (v.kind === 'prim' ? v : v.type === RT.MemberPrimitiveTyped ? v.prim : null);
+    }
+
+    function moduleForKey(key, index) {
+        const group = MODULE_GROUPS.find(g => new RegExp('^' + g.key + '(?:acquired|equipped)\\d+$').test(key));
+        return group && group.modules.find(m => m[0] === index);
+    }
+
+    function indexLabel(key, index) {
+        const mod = moduleForKey(key, index);
+        if (mod) return mod[1];
+        if (/^pashaprogress\d+$/.test(key)) return PASHA_FLAGS[index] || '';
+        if (/^otherdata\d+$/.test(key) && index === 71) return 'Pasha’s Lupoto travel flag';
+        if (/^miscworldstate\d+$/.test(key)) return ({1:'Pond bot healing core',9:'Reached Crash Site',18:'Reached Mabec',35:'Gili’s weapon gift',44:'Molly’s horse gift',46:'Relic’s Pebble gift',54:'Charley-area self-talk',58:'Scientist conversation',64:'Pasha’s Familiar completion flag'})[index] || '';
+        if (/^inventory\d+$/.test(key)) return index === 7 ? 'Healing cores (inventory total)' : index === 46 ? 'Molly’s Work Horse' : (MELEE.find(x => x.index === index) || {}).name || '';
+        if (/^itempickupsvalue\d+$/.test(key)) {
+            const source = CORE_SOURCES.find(x => x.key === 'itempickupsvalue' && x.index === index);
+            if (source) return 'Healing core · ' + source.name;
+        }
+        if (/^otherdata\d+$/.test(key) && index === 36) return 'You Monster! creature counter';
+        if (key === 'achievementslist') return ACHIEVEMENTS[index] ? ACHIEVEMENTS[index].name + ' (shared record)' : '';
+        return '';
+    }
+
+    function friendlyPath(path) {
+        const m = path.match(/^([^.[\]]+)\[(\d+)\]$/);
+        const label = m && indexLabel(m[1], Number(m[2]));
+        return label ? `${path} · ${label}` : path;
+    }
+
+    function renderModules() {
+        const list = document.getElementById('module-list'); list.replaceChildren(); pruneInputs();
+        const slot = document.getElementById('slot-select').value;
+        for (const group of MODULE_GROUPS) {
+            const section = document.createElement('section'); section.className = 'module-group';
+            const heading = document.createElement('h3'); heading.textContent = group.title; section.appendChild(heading);
+            for (const [index, name, location] of group.modules) {
+                const leaf = listLeaf(group.key + 'acquired' + slot, index);
+                const row = document.createElement('div'); row.className = 'module-row';
+                row.dataset.group = group.key; row.dataset.index = index; row.dataset.search = `${name} ${location}`.toLowerCase();
+                const label = document.createElement('label'); label.htmlFor = `module-${group.key}-${index}`; label.appendChild(document.createTextNode(name)); label.appendChild(badge(''));
+                row.append(label);
+                const hint = document.createElement('div'); hint.className = 'hint'; hint.textContent = location;
+                if (leaf && leaf.ptype === PT.Boolean) {
+                    const input = makeLeafInput(leaf, msg => { hint.textContent = msg || location; hint.classList.toggle('err', !!msg); });
+                    input.id = label.htmlFor; input.setAttribute('aria-label', name + ' ownership');
+                    for (const opt of input.options) opt.textContent = opt.value === 'true' ? 'Owned' : 'Missing';
+                    row.append(input);
+                }
+                row.append(hint, evidenceBlock([`${group.key}acquired${slot}[${index}]`, MODULE_ROUTES[group.key][index][2]]));
+                section.appendChild(row);
+            }
+            list.appendChild(section);
+        }
+        refreshModules();
+    }
+
+    function refreshModules() {
+        if (!state) return;
+        const slot = document.getElementById('slot-select').value;
+        const query = document.getElementById('module-filter').value.trim().toLowerCase();
+        const missingOnly = document.getElementById('missing-only').checked;
+        for (const row of document.querySelectorAll('.module-row')) {
+            const index = Number(row.dataset.index), group = row.dataset.group;
+            const acquired = listLeaf(group + 'acquired' + slot, index), equipped = listLeaf(group + 'equipped' + slot, index);
+            const has = acquired && typeof acquired.value === 'boolean' ? acquired.value : null;
+            const worn = equipped && equipped.value === true;
+            const label = row.querySelector('.badge');
+            label.textContent = has === null ? 'Unknown' : worn ? has ? 'Equipped' : 'Equipped, missing' : has ? 'Owned' : 'Missing';
+            label.className = 'badge ' + (has === true ? 'ok' : has === false ? 'warn' : '');
+            const input = row.querySelector('select');
+            if (input) {
+                input.querySelector('option[value="false"]').disabled = !!worn;
+                input.title = worn ? 'Unequip this module in the game before removing ownership.' : 'Change module ownership';
+            }
+            row.hidden = (!!query && !row.dataset.search.includes(query)) || (missingOnly && has === true);
+        }
+        for (const group of document.querySelectorAll('.module-group')) group.hidden = !group.querySelector('.module-row:not([hidden])');
+        document.getElementById('module-empty').hidden = !!document.querySelector('.module-row:not([hidden])');
+        const totals = computeProgress(slot).totals.modules;
+        document.getElementById('module-count').textContent = `${totals.owned}/${totals.total} owned · ${totals.missing} missing` + (totals.unknown ? ` · ${totals.unknown} unknown` : '');
+    }
+
+    function renderPasha() {
+        const slot = document.getElementById('slot-select').value;
+        const dayLeaf = quickLeaf(slot, { key: 'day' });
+        const day = dayLeaf && Number.isInteger(dayLeaf.value) ? dayLeaf.value : null;
+        const progress = i => { const leaf = listLeaf('pashaprogress' + slot, i); return leaf ? Number(leaf.value) : null; };
+        const travelLeaf = listLeaf('otherdata' + slot, 71);
+        const travel = travelLeaf ? Number(travelLeaf.value) : null;
+        const completeLeaf = listLeaf('miscworldstate' + slot, 64);
+        const completed = completeLeaf ? Number(completeLeaf.value) > 0 : null;
+        document.getElementById('run-summary').textContent = day !== null && day >= 1 && day <= 6
+            ? `Day ${day} · ${day - 1} ship part${day === 2 ? '' : 's'} returned` : 'Saved day unavailable or outside the verified range.';
+        const container = document.getElementById('pasha-locations');
+        container.replaceChildren();
+        const unknown = 'Required save fields are unavailable; check her camp dialogue first.';
+        const ready = (d, p) => day === null || progress(p) === null ? null : day === d && progress(p) >= 3;
+        const eastReady = day === null ? null : day === 2 ? ready(2, 2)
+            : day === 5 ? (progress(11) === null ? null : progress(11) < 5) : false;
+        const rows = [
+            ['Crash Site camp', 'Talk after each ship-part delivery until her dialogue repeats.', null, 'Camp dialogue depends on the day and previous conversations.'],
+            ['Stoffbloom · first room east of camp', 'Between the Crash Site and the Stoffbloom teleporter. Leave and return after finishing the first conversation for the repeat visit.',
+                eastReady,
+                'One part returned, with that day’s camp dialogue finished; another encounter occurs after four parts.'],
+            ['Lupoto · right of the starting area', 'Look for her green hood and gas mask just right of where Deadsuit first wakes up.', ready(3, 3),
+                'Two parts returned, with that day’s camp dialogue finished.'],
+            ['Lupoto · by the Relic', 'The spot where Relic later gives the Pebble of Perspective. Follow the starting-area conversation with a room change.',
+                day === null || travel === null || progress(12) === null ? null : travel === 2 && (day < 4 || (day === 4 && progress(12) < 2)),
+                'Requires the Lupoto travel flag, and is limited by the day and this conversation’s progress.'],
+            ['Stoffbloom · hidden crashed pod', 'Southwest of the save statue/teleporter: descend, break the floor in the lower passage, then dash left across the gap.', ready(4, 4),
+                'Exactly three parts returned, after the camp conversation about her sister. This is the Familiar encounter.'],
+        ];
+        for (const [name, route, eligible, condition] of rows) {
+            const card = document.createElement('div');
+            card.className = 'quest-card' + (eligible ? ' available' : '');
+            const title = document.createElement('strong'); title.textContent = name;
+            const where = document.createElement('p'); where.textContent = route;
+            const status = document.createElement('p'); status.className = 'muted';
+            status.textContent = (eligible === true ? 'Saved prerequisites met. ' : eligible === false ? 'Saved prerequisites not met. ' : '') + condition;
+            if (name !== 'Crash Site camp' && eligible === null) status.textContent += ' ' + unknown;
+            card.append(title, where, status); container.appendChild(card);
+        }
+        const result = document.createElement('p'); result.className = 'muted';
+        result.textContent = completed === true ? 'The saved Familiar completion flag is set.'
+            : completed === false ? 'The saved Familiar completion flag is not set. Dialogue progress alone does not prove the achievement was awarded.'
+            : 'Familiar completion flag unavailable.';
+        container.appendChild(result);
+        const flags = document.getElementById('pasha-flags'); flags.replaceChildren();
+        const table = document.createElement('table'); table.className = 'quest-flags';
+        const head = table.createTHead().insertRow();
+        for (const text of ['Conversation / flag', 'Save field', 'Value']) { const th = document.createElement('th'); th.textContent = text; head.appendChild(th); }
+        const body = table.createTBody();
+        for (const [index, label] of Object.entries(PASHA_FLAGS)) {
+            const row = body.insertRow();
+            for (const text of [label, `pashaprogress${slot}[${index}]`, progress(Number(index)) ?? 'Unavailable']) row.insertCell().textContent = text;
+        }
+        const row = body.insertRow();
+        for (const text of ['Lupoto travel flag', `otherdata${slot}[71]`, travel ?? 'Unavailable']) row.insertCell().textContent = text;
+        flags.appendChild(table);
     }
 
     // ─── All values tree ──────────────────────────────────────────────────────
@@ -1107,7 +1771,9 @@
         row.className = 'tree-row';
         const name = document.createElement('span');
         name.className = isIndex ? 'idx' : 'name';
-        name.textContent = label;
+        const index = isIndex && label.match(/^\[(\d+)\]$/);
+        const knownName = index && indexLabel(topKey, Number(index[1]));
+        name.textContent = label + (knownName ? ' ' + knownName : '');
 
         if (d.kind === 'container') {
             const details = document.createElement('details');
@@ -1170,6 +1836,10 @@
         for (const entry of sorted) {
             const el = buildRow(entry.key, entry.value, entry.key, false);
             el.dataset.key = entry.key.toLowerCase();
+            const moduleGroup = MODULE_GROUPS.find(g => new RegExp('^' + g.key + '(?:acquired|equipped)\\d+$').test(entry.key));
+            el.dataset.search = (entry.key + ' ' + (moduleGroup ? moduleGroup.modules.map(m => m[1]).join(' ') : '') +
+                (/^pashaprogress\d+$/.test(entry.key) ? ' Pasha ' + Object.values(PASHA_FLAGS).join(' ') : '') +
+                (/^(?:otherdata|miscworldstate)\d+$/.test(entry.key) ? ' Pasha Familiar ' : '')).toLowerCase();
             tree.appendChild(el);
         }
         document.getElementById('all-count').textContent = `${state.entries.length} keys`;
@@ -1179,7 +1849,7 @@
     function applyFilter() {
         const q = document.getElementById('filter').value.trim().toLowerCase();
         for (const el of document.getElementById('tree').children) {
-            el.style.display = !q || el.dataset.key.includes(q) ? '' : 'none';
+            el.style.display = !q || el.dataset.search.includes(q) ? '' : 'none';
         }
     }
 
@@ -1194,7 +1864,7 @@
             const li = document.createElement('li');
             const path = document.createElement('span');
             path.className = 'path';
-            path.textContent = info.path + (info.owners.size > 1 ? `  (also ${[...info.owners].filter(k => !info.path.startsWith(k)).join(', ')})` : '');
+            path.textContent = friendlyPath(info.path) + (info.owners.size > 1 ? `  (also ${[...info.owners].filter(k => !info.path.startsWith(k)).join(', ')})` : '');
             const from = document.createElement('span');
             from.className = 'from';
             const quote = t => leaf.kind === 'prim' ? t : JSON.stringify(t);
@@ -1216,6 +1886,9 @@
         document.getElementById('save-count').textContent = changes.length
             ? `${changes.length} pending change${changes.length === 1 ? '' : 's'}`
             : 'No changes yet';
+        refreshModules();
+        renderPasha();
+        renderProgress();
     }
 
     function revertLeaf(leaf) {
@@ -1224,6 +1897,7 @@
             leaf.raw = snap;
             leaf.value = NRBF.decodePrim(leaf.ptype, snap);
         } else leaf.value = snap;
+        state.downloaded = false;
         syncLeaf(leaf);
         renderChanges();
     }
@@ -1327,12 +2001,16 @@
                 state = { ...loaded, originalBytes: bytes, filename: file.name, downloaded: false };
             } catch (err) {
                 state = null;
-                for (const id of ['quick-panel', 'all-panel', 'changes-panel', 'tips']) document.getElementById(id).classList.remove('visible');
+                for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'pasha-panel', 'all-panel', 'changes-panel', 'tips']) document.getElementById(id).classList.remove('visible');
                 dropzone.style.display = '';
                 document.getElementById('save-bar').classList.remove('visible');
                 showError(`Could not open ${file.name}. It doesn't look like a Ghost Song save file (${err.message}).`);
                 return;
             }
+            editingEnabled = false;
+            document.getElementById('enable-editing').checked = false;
+            document.body.classList.add('editing-off');
+            document.getElementById('mode-label').textContent = 'Read-only · no values can be changed';
             inputsByLeaf.clear();
             document.getElementById('filename-label').textContent = `${file.name} · ${bytes.length.toLocaleString()} bytes`;
 
@@ -1351,10 +2029,16 @@
             slotSelect.parentElement.querySelectorAll('label, select').forEach(el => el.style.display = slots.length ? '' : 'none');
 
             document.getElementById('filter').value = '';
+            document.getElementById('module-filter').value = '';
+            for (const id of ['missing-only', 'core-missing', 'melee-missing']) document.getElementById(id).checked = false;
+            for (const id of ['achievement-search', 'melee-search']) document.getElementById(id).value = '';
+            document.getElementById('achievement-status').value = 'all';
             renderQuick();
+            renderModules();
             renderTree();
             renderChanges();
-            for (const id of ['quick-panel', 'all-panel', 'tips']) document.getElementById(id).classList.add('visible');
+            for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'pasha-panel', 'all-panel', 'tips']) document.getElementById(id).classList.add('visible');
+            showView('overview');
             dropzone.style.display = 'none';
             document.getElementById('save-bar').classList.add('visible');
             showStatus('ok', `Safety check passed: all ${state.doc.records.length} records were decoded and re-encoding them reproduces the original file byte for byte.`);
@@ -1363,7 +2047,14 @@
         reader.readAsArrayBuffer(file);
     }
 
-    document.getElementById('slot-select').addEventListener('change', renderQuick);
+    document.getElementById('slot-select').addEventListener('change', () => {
+        renderQuick();
+        renderModules();
+        renderPasha();
+        renderProgress();
+    });
+    document.getElementById('module-filter').addEventListener('input', refreshModules);
+    document.getElementById('missing-only').addEventListener('change', refreshModules);
     document.getElementById('filter').addEventListener('input', applyFilter);
     document.getElementById('load-another-btn').addEventListener('click', () => fileInput.click());
 
@@ -1382,14 +2073,18 @@
         e.preventDefault();
         dropzone.classList.remove('drag-over');
         const file = e.dataTransfer.files[0];
-        if (file) loadFile(file);
+        if (file) requestLoad(file);
     });
     fileInput.addEventListener('change', e => {
         const file = e.target.files[0];
-        if (file && (!state || !changedLeaves().length || state.downloaded ||
-                     confirm('Discard your pending changes and open another file?'))) loadFile(file);
+        if (file) requestLoad(file);
         fileInput.value = '';
     });
+
+    function requestLoad(file) {
+        if (!state || !changedLeaves().length || state.downloaded ||
+            confirm('Discard your pending changes and open another file?')) loadFile(file);
+    }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
