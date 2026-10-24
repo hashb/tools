@@ -8,13 +8,16 @@
         * { box-sizing: border-box; }
 
         :root {
+            color-scheme: light dark;
             --bg: #fdfdfd;
             --bg2: #f8f8f8;
             --text: #333;
-            --text-muted: #888;
+            --text-muted: #666;
             --accent: #06c;
             --border: #ddd;
             --focus-bg: #f0f8ff;
+            --ok: #187c42;
+            --err: #c0392b;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -22,10 +25,12 @@
                 --bg: #212121;
                 --bg2: #252525;
                 --text: #ddd;
-                --text-muted: #888;
+                --text-muted: #999;
                 --accent: #8cc2dd;
                 --border: #444;
-                --focus-bg: #555;
+                --focus-bg: #2a2a2a;
+                --ok: #5fc98b;
+                --err: #e57368;
             }
         }
 
@@ -56,6 +61,7 @@
             border-color: var(--accent);
             background: var(--focus-bg);
         }
+        #dropzone small { display: block; margin-top: 8px; }
         #dropzone strong { display: block; font-size: 15px; margin-bottom: 6px; color: var(--text); }
         #fileInput { display: none; }
 
@@ -67,7 +73,7 @@
             border-left: 3px solid var(--border);
         }
         .msg.visible { display: block; }
-        .msg.error { color: #c0392b; border-left-color: #c0392b; background: var(--bg2); }
+        .msg.error { color: var(--err); border-left-color: var(--err); background: var(--bg2); }
         .msg.info  { color: var(--accent); border-left-color: var(--accent); background: var(--bg2); }
 
         /* Editor panel */
@@ -96,7 +102,7 @@
             color: var(--text-muted);
             word-break: break-all;
         }
-        .panel-header .actions { display: flex; gap: 8px; }
+        .panel-header .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
         button {
             background: var(--accent);
@@ -116,8 +122,8 @@
             border: 1px solid var(--accent);
         }
         button.secondary:hover { background: var(--focus-bg); opacity: 1; }
-        button.danger { background: #c0392b; }
-        button.success { background: #27ae60; }
+        button.danger { background: var(--err); }
+        button.success { background: var(--ok); }
 
         /* Tree */
         #tree-container {
@@ -243,7 +249,7 @@
             line-height: 1.5;
         }
         .node-btn:hover { background: var(--bg2); color: var(--text); opacity: 1; }
-        .node-btn.del:hover { color: #c0392b; border-color: #c0392b; background: var(--bg2); }
+        .node-btn.del:hover { color: var(--err); border-color: var(--err); background: var(--bg2); }
 
         .children-wrap { padding-left: 20px; }
 
@@ -255,7 +261,12 @@
             align-items: center;
             flex-wrap: wrap;
         }
+        .add-key-input { font: 13px monaco, monospace; border: 1px solid var(--border); border-radius: 3px; padding: 4px 8px; width: 140px; background: var(--bg); color: var(--text); }
+        .add-key-input:focus { outline: none; border-color: var(--accent); background: var(--bg2); }
+        .add-root-bar button { font-size: 12px; }
         .add-root-bar label { font-size: 13px; color: var(--text-muted); }
+
+        button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
         @media (max-width: 600px) {
             body { padding: 10px; }
@@ -272,7 +283,7 @@
     <div id="dropzone">
         <strong>Drag &amp; drop a .plist file here</strong>
         or click to select a file
-        <br><small style="margin-top:8px;display:block;color:#aaa">Supports XML and binary plist files (.plist)</small>
+        <small>Supports XML and binary plist files (.plist)</small>
     </div>
     <input type="file" id="fileInput" accept=".plist,text/xml,application/xml">
 
@@ -806,7 +817,7 @@
             const keyInput = document.createElement('input');
             keyInput.type = 'text';
             keyInput.placeholder = 'new key';
-            keyInput.style.cssText = 'font-size:13px;border:1px solid #ddd;border-radius:4px;padding:4px 8px;width:140px;';
+            keyInput.className = 'add-key-input';
 
             const typeSelect = document.createElement('select');
             typeSelect.className = 'type-select';
@@ -819,7 +830,6 @@
 
             const addBtn = document.createElement('button');
             addBtn.textContent = '+ Add key';
-            addBtn.style.fontSize = '12px';
             addBtn.addEventListener('click', () => {
                 let key = keyInput.value.trim() || 'NewKey';
                 // Avoid duplicate keys
@@ -848,7 +858,6 @@
 
             const addBtn = document.createElement('button');
             addBtn.textContent = '+ Add item';
-            addBtn.style.fontSize = '12px';
             addBtn.addEventListener('click', () => {
                 node.value.push(defaultNode(typeSelect.value));
                 renderTree();

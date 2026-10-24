@@ -1,4 +1,4 @@
-Check a Ghost Song `SaveData` file locally for achievement progress, NPC conversations, missing healing cores, modules and alternate weapons. The overview suggests where to go next; all 42 achievement goals have guidance and save evidence. Includes locations for 40 modules, 9 weapons and 8 healing-core sources in Steam build 1.2.12d. Optional editing retains the original filename and byte-preserving safety checks.
+Check a Ghost Song `SaveData` file locally for achievement progress, NPC conversations, missing healing cores, godseeds, modules and alternate weapons. The overview suggests where to go next; all 42 achievement goals have guidance and save evidence. Includes locations for 40 modules, 9 weapons, 8 healing-core sources and 19 fixed godseed sources in Steam build 1.2.12d. Optional editing retains the original filename and byte-preserving safety checks.
 
 Open `ghostsong-save-editor.html` directly or serve it as a static page. Import the game's BinaryFormatter `SaveData` and select a slot. Everything runs locally without uploading the save, contacting Steam, or loading external assets. Use **Achievements**, **Collectibles** and **NPCs** to inspect progress. Search names/locations, filter unfinished goals or missing items, and expand individual evidence. A downloadable JSON progress report contains the selected slot's interpreted checklist and whether it includes pending edits. It is a report, not a game save.
 
@@ -36,6 +36,30 @@ Healing-core **inventory** and **source collection** remain separate. Starting/c
 Bill's initial core stock is 1; only stock 0 is interpreted as purchased. Negative/unlimited/disabled stock and unexpected values remain unknown. The pond bot uses `corebotpickup.DataNumber`, not a SparklyItem pickup flag, and must be checked separately.
 
 The nine weapon ownership indices are `inventory[1,11,12,26,32,33,34,35,68]`: Blast Shield, Hypersledge, Hulking Fist, Dolly, Painwheel, Hazard Blade, Hudson Goodshot, Magma Spear and Kinzy Axe. Hudson Goodshot's serialized internal name is `Goldglum` / `gilisgun`; the English UI name is verified in `UItexty.processlanguage`. The starting melee attack is not one of these nine.
+
+## Godseeds
+
+The Collectibles tab includes all five items named Godseed in the shipped inventory: **Red** (Vigor +1), **Orange** (GunPower +1), **Violet** (Resolve +1, internally `godseedpurple`), **Green** (Luck +1), and **Malformed** (Gambler's quest gift). Inventory indices are 14, 15, 16, 31 and 53, respectively. Search by colour, effect or location (including “purple”), filter by type, or show only uncollected/unknown sources. The overview, suggested next steps, named raw values and downloaded report include godseed progress.
+
+Coloured seeds are consumable. Current inventory is shown separately from **fixed-source collection**: absorbing a seed does not make its collected source appear missing. Carrying seeds does not prove that any particular source was collected, either. The checker does not infer lifetime collection or the number absorbed from character stats. World sources can reset in New Game Plus while inventory and stats carry over.
+
+The 19 fixed sources are 17 current scene pickups, Bill's one Green Godseed (8,000 Nanogel after three deliveries, required world state 61) and Gambler's Malformed Godseed gift. Each source has a location, route note and build reference. Pickup state comes from `itempickupsvalue`; Bill's initial stock is 1 and a purchase leaves `billstock[1] == 0`. Negative or unexpected stock remains unknown.
+
+| Type | Current pickup indices | Other fixed source |
+| --- | --- | --- |
+| Red | 8, 19, 20, 29, 54 | — |
+| Orange | 14, 17, 25, 52, 62 | — |
+| Violet | 3, 11, 16, 21, 33, 77 | — |
+| Green | 89 | `billstock[1] == 0` |
+| Malformed | — | `miscworldstate[43] == 2` |
+
+For the Malformed gift, state **0** is not received, **1** is **Gift ready**, and **2** is received. State 1 must not count as collected: `gamblerroom.Update` (**0x180633a80**) checks for 1, sets 2 and calls `status.GainItem(53)`. Other values remain unknown. This is stricter than treating any positive quest flag as collection evidence.
+
+Loose seeds generated while levelling at Big Bots are separate from finite world sources. The page reports saved `seedsinbotroom.GunPower` for Orange, `.Vigor` for Red, and `.Volatility` for Violet. They are pending loose pickups, not extra world-source flags and not bag counts. Green and Malformed have no mapped pending-Bot counter. Missing pending-count fields remain unknown. `levelupmenu.SpawnSeed` (**0x180a85de0**), `bigbot.spawnstillseeds` (**0x180af3df0**) and `status.SaveTheGame` (serialization at **0x18036ec29**) support this distinction.
+
+Mappings use the actual `SparklyItem.Item/itemNumber/arrayNumber` placements in this build and `npcvendordata.BillInventory`. Older `worlddata.ItemPickups.Desc` annotations are not authoritative: the annotated seed at pickup 12 has no corresponding current scene pickup and is excluded. `status.GainSeed` (**0x180362db0**) maps the four loose-pickup colours to inventory, while `status.Consumable` (**0x18035f0b0**) applies the permanent stat effects. Green's Luck increase does not change Frenzied Shell's independent fixed 3% worker drop roll. Warm Seed and Dream Seed are separately named quest items, not part of this five-type Godseed catalog.
+
+The godseed panel is read-only and shares the existing explicit editor mode for any raw-value changes. Tests cover all five types and 19 source identities, consumed seeds, carried inventory versus source history, pending gifts, shop stock semantics, loose Bot counters, missing fields/list capacity, multiple slots, filters, reports and exact-byte edit/revert behavior.
 
 ## NPC conversations
 

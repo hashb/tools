@@ -111,6 +111,14 @@ def build_save(*, knowledge=False, day=4, short_suit_list=False, progress=None, 
                 continue
             if isinstance(value, list):
                 saved_list(key, BOOLEAN if value and type(value[0]) is bool else INT32, value, size=(progress_sizes or {}).get(key))
+            elif isinstance(value, dict):
+                object_id = next(ids)
+                entries.append((key, ref(object_id)))
+                names = list(value)
+                extra_records.extend(b"\x04" + i32(object_id) + lps("SeedCounts") + i32(len(names)))
+                extra_records.extend(b"".join(lps(name) for name in names))
+                extra_records.extend(bytes([0] * len(names)) + bytes([INT32] * len(names)))
+                extra_records.extend(b"".join(i32(value[name]) for name in names))
             elif isinstance(value, bool):
                 entries.append((key, prim(BOOLEAN, bytes([value]))))
             else:
@@ -464,6 +472,8 @@ def test_checker_defaults_readonly_and_report_preserves_bytes(page: Page, static
     assert report['slot'] == '1' and report['includesEdits'] is False
     assert len(report['achievements']) == 42
     assert len(report['npcs']) == 19
+    assert len(report['godseeds']) == 5
+    assert report['totals']['godseeds']['unknown'] == 19
     assert report['npcs'][0]['encounters'][0]['status'] == 'unknown'
     assert report['totals']['modules']['unknown'] == 40
     assert save_file.read_bytes() == build_save()
@@ -775,3 +785,138 @@ def test_npc_counters_use_list_size_not_backing_capacity(page: Page, static_serv
     assert npc_entry(page, 'bill', 1)['status'] == 'covered'
     assert npc_entry(page, 'bill', 2)['value'] is None
     assert all(e['index'] != 9 for e in bill['encounters'])
+
+# ─── Godseed source checklist ────────────────────────────────────────────────
+
+def seed_type(page, type_id):
+    return next(t for t in progress_model(page)['godseeds'] if t['id'] == type_id)
+
+
+def all_seed_sources():
+    values = [0] * 105
+    for i in [8,20,19,29,54,14,17,25,52,62,3,11,16,21,33,77,89]:
+        values[i] = 1
+    stock = [1] * 21
+    stock[1] = 0
+    misc = [0] * 72
+    misc[43] = 2
+    return {'itempickupsvalue1':values,'billstock1':stock,'miscworldstate1':misc}
+
+
+def test_all_godseed_types_and_current_scene_sources(page: Page, static_server):
+    load_knowledge_save(page, readonly=True)
+    m = progress_model(page)
+    assert [(t['id'],t['index'],t['totals']['total']) for t in m['godseeds']] == [
+        ('red',14,5),('orange',15,5),('violet',16,6),('green',31,2),('malformed',53,1)]
+    assert len(m['godseedSources']) == 19
+    assert len({s['id'] for s in m['godseedSources']}) == 19
+    pickup_ids = {s['index'] for s in m['godseedSources'] if s['key']=='itempickupsvalue'}
+    assert pickup_ids == {8,20,19,29,54,14,17,25,52,62,3,11,16,21,33,77,89}
+    # The old worlddata annotation at index 12 has no current scene pickup.
+    assert 12 not in pickup_ids
+    assert all(s['where'] and s['scene'] for s in m['godseedSources'])
+    assert 'Vigor' in seed_type(page,'red')['effect']
+    assert 'GunPower' in seed_type(page,'orange')['effect']
+    assert 'Resolve' in seed_type(page,'violet')['effect']
+    assert 'Luck' in seed_type(page,'green')['effect']
+    page.locator('#navigation button[data-view="collectibles"]').click()
+    expect(page.locator('#godseeds-panel')).to_be_visible()
+    expect(page.locator('#godseed-list .collectible')).to_have_count(19)
+    assert page.evaluate('changedLeaves().length') == 0
+
+
+def test_absorbed_godseeds_stay_collected_with_empty_inventory(page: Page, static_server):
+    data = all_seed_sources()
+    data['inventory1'] = [0] * 69
+    load_knowledge_save(page, readonly=True, progress=data)
+    m = progress_model(page)
+    assert m['totals']['godseeds'] == {'owned':19,'missing':0,'unknown':0,'total':19}
+    assert all(t['inventoryCount']==0 for t in m['godseeds'])
+    assert all(s['owned'] is True for s in m['godseedSources'])
+    page.locator('#navigation button[data-view="collectibles"]').click()
+    page.locator('#godseed-missing').check()
+    expect(page.locator('#godseed-list .collectible:visible')).to_have_count(0)
+    expect(page.locator('#godseed-empty')).to_be_visible()
+    expect(page.locator('#progress-summary')).to_contain_text('Godseed sources collected')
+    assert page.evaluate('NRBF.bytesEqual(buildVerifiedFile().out,state.originalBytes)')
+
+
+def test_godseed_inventory_does_not_fabricate_world_collection(page: Page, static_server):
+    inventory = [0] * 69
+    for i in [14,15,16,31,53]:inventory[i]=3
+    load_knowledge_save(page, readonly=True, progress={'inventory1':inventory,'itempickupsvalue1':[0]*105,
+        'billstock1':[1]*21,'miscworldstate1':[0]*72,'newgameplus1':1})
+    m = progress_model(page)
+    assert m['totals']['godseeds']['owned'] == 0
+    assert m['totals']['godseeds']['missing'] == 19
+    assert all(t['inventoryCount']==3 for t in m['godseeds'])
+
+
+@pytest.mark.parametrize('gift,expected,ready', [(0,False,False),(1,False,True),(2,True,False),(3,None,False)])
+def test_malformed_gift_ready_is_not_received(page: Page, static_server, gift, expected, ready):
+    misc = [0] * 72;misc[43]=gift
+    load_knowledge_save(page, readonly=True, progress={'miscworldstate1':misc})
+    source = seed_type(page,'malformed')['sources'][0]
+    assert source['owned'] is expected and source['giftReady'] is ready
+    assert source['index'] == 43 and source['key'] == 'miscworldstate'
+    if ready:
+        page.locator('#navigation button[data-view="collectibles"]').click()
+        expect(page.locator('#godseed-list [data-id="malformed-gambler"]')).to_contain_text('Gift ready')
+
+
+@pytest.mark.parametrize('stock,expected', [(-1,None),(0,True),(1,False),(2,None)])
+def test_green_godseed_shop_stock_semantics(page: Page, static_server, stock, expected):
+    values = [1]*21;values[1]=stock
+    load_knowledge_save(page, readonly=True, progress={'billstock1':values})
+    source=next(s for s in seed_type(page,'green')['sources'] if s['id']=='green-bill')
+    assert source['owned'] is expected
+    assert '8,000' in source['where'] and 'three ship parts' in source['where']
+
+
+def test_godseed_location_filters_and_separate_loose_seed_counts(page: Page, static_server):
+    data=all_seed_sources();data['itempickupsvalue1'][11]=0
+    data['seedsinbotroom1']={'GunPower':2,'Vigor':3,'Volatility':4}
+    load_knowledge_save(page, readonly=True, progress=data)
+    assert seed_type(page,'orange')['pendingCount']==2
+    assert seed_type(page,'red')['pendingCount']==3
+    assert seed_type(page,'violet')['pendingCount']==4
+    assert seed_type(page,'green')['pendingCount'] is None
+    assert progress_model(page)['totals']['godseeds']['owned']==18
+    page.locator('#navigation button[data-view="collectibles"]').click()
+    page.locator('#godseed-type').select_option('violet')
+    page.locator('#godseed-missing').check()
+    expect(page.locator('#godseed-list .collectible:visible')).to_have_count(1)
+    expect(page.locator('#godseed-list .collectible:visible')).to_contain_text('Huttle Drop')
+    page.locator('#godseed-search').fill('purple')
+    expect(page.locator('#godseed-list .collectible:visible')).to_have_count(1)
+    page.locator('#godseed-search').fill('Sap-Stone')
+    expect(page.locator('#godseed-empty')).to_be_visible()
+
+
+def test_godseed_missing_fields_list_size_and_other_slots_are_unknown(page: Page, static_server):
+    pickups = [0] * 105;pickups[3]=pickups[89]=1
+    load_knowledge_save(page, readonly=True, progress={'itempickupsvalue1':pickups,'miscworldstate1':None}, progress_sizes={'itempickupsvalue1':4})
+    m=progress_model(page)
+    assert m['totals']['godseeds']['owned']==1
+    assert m['totals']['godseeds']['unknown']==18  # positive capacity at 89 must be ignored
+    assert all(t['inventoryCount'] is None and t['pendingCount'] is None for t in m['godseeds'])
+    page.locator('#slot-select').select_option('2')
+    m=progress_model(page)
+    assert m['totals']['godseeds']=={'owned':0,'missing':0,'unknown':19,'total':19}
+    assert all(t['inventoryCount'] is None for t in m['godseeds'])
+
+
+def test_godseed_pickup_edits_refresh_counts_and_revert_without_other_changes(page: Page, static_server):
+    original=load_knowledge_save(page, progress={'itempickupsvalue1':[0]*105})
+    page.locator('#filter').fill('itempickupsvalue1')
+    tree=page.locator('#tree > details[data-key="itempickupsvalue1"]');tree.locator('> summary').click()
+    field=tree.locator('input[aria-label="[54]"]');field.fill('1');field.press('Tab')
+    assert next(s for s in seed_type(page,'red')['sources'] if s['index']==54)['owned'] is True
+    expect(page.locator('#changes-list')).to_contain_text('Red Godseed')
+    with page.expect_download() as info:page.locator('#download-btn').click()
+    edited=pathlib.Path(info.value.path()).read_bytes()
+    assert len(edited)==len(original)
+    assert [(a,b) for a,b in zip(original,edited) if a!=b]==[(0,1)]
+    page.locator('#reset-all-btn').click()
+    assert next(s for s in seed_type(page,'red')['sources'] if s['index']==54)['owned'] is False
+    assert page.evaluate('NRBF.bytesEqual(buildVerifiedFile().out,state.originalBytes)')

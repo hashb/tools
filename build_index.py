@@ -74,7 +74,10 @@ def extract_description(html_path: pathlib.Path) -> str:
     for para in text.split("\n\n"):
         para = para.strip()
         if para:
-            return para[:300]
+            para = re.sub(r"`([^`]+)`", r"\1", para)
+            if len(para) <= 300:
+                return para
+            return para[:299].rsplit(" ", 1)[0].rstrip(".,;:") + "…"
     return ""
 
 
@@ -105,6 +108,7 @@ INDEX_TEMPLATE = """\
   <title>tools.chenna.me</title>
   <style>
     :root {{
+      color-scheme: light dark;
       --c-bg:        #fdfdfd;
       --c-bg2:       #f8f8f8;
       --c-text:      #333;
@@ -140,6 +144,7 @@ INDEX_TEMPLATE = """\
 
     a {{ color: var(--c-link); text-decoration: none; }}
     a:hover {{ text-decoration: underline; }}
+    a:focus-visible {{ outline: 2px solid var(--c-link); outline-offset: 2px; }}
 
     header {{
       border-bottom: 1px solid var(--c-border);
@@ -224,6 +229,11 @@ INDEX_TEMPLATE = """\
 
     footer a {{ color: var(--c-muted); }}
     footer a:hover {{ color: var(--c-link); }}
+
+    @media (max-width: 600px) {{
+      body {{ padding: 10px; }}
+      header h1 {{ font-size: 20px; }}
+    }}
   </style>
 </head>
 <body>
@@ -296,6 +306,7 @@ PAGE_404_TEMPLATE = """\
   <title>404 - Page Not Found | tools.chenna.me</title>
   <style>
     :root {{
+      color-scheme: light dark;
       --c-bg:        #fdfdfd;
       --c-text:      #333;
       --c-link:      #06c;
@@ -324,6 +335,7 @@ PAGE_404_TEMPLATE = """\
     }}
     a {{ color: var(--c-link); text-decoration: none; }}
     a:hover {{ text-decoration: underline; }}
+    a:focus-visible {{ outline: 2px solid var(--c-link); outline-offset: 2px; }}
     header {{
       border-bottom: 1px solid var(--c-border);
       margin-bottom: 1.5em;
@@ -337,6 +349,11 @@ PAGE_404_TEMPLATE = """\
     footer {{ border-top: 1px solid var(--c-border); margin-top: 2em; padding-top: 0.75em; font-size: 0.8em; color: var(--c-muted); }}
     footer a {{ color: var(--c-muted); }}
     footer a:hover {{ color: var(--c-link); }}
+
+    @media (max-width: 600px) {{
+      body {{ padding: 10px; }}
+      header h1 {{ font-size: 20px; }}
+    }}
   </style>
 </head>
 <body>

@@ -8,17 +8,18 @@
         * { box-sizing: border-box; }
 
         :root {
+            color-scheme: light dark;
             --bg: #fdfdfd;
             --bg2: #f8f8f8;
             --text: #333;
-            --text-muted: #888;
+            --text-muted: #666;
             --accent: #06c;
             --border: #ddd;
             --focus-bg: #f0f8ff;
-            --ok: #27ae60;
+            --ok: #187c42;
             --err: #c0392b;
             --changed-bg: #fff6d6;
-            --warn: #b7791f;
+            --warn: #885a17;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -26,10 +27,10 @@
                 --bg: #212121;
                 --bg2: #252525;
                 --text: #ddd;
-                --text-muted: #888;
+                --text-muted: #999;
                 --accent: #8cc2dd;
                 --border: #444;
-                --focus-bg: #555;
+                --focus-bg: #2a2a2a;
                 --ok: #5fc98b;
                 --err: #e57368;
                 --changed-bg: #3d3520;
@@ -49,6 +50,7 @@
 
         h1 { margin-top: 0; font-size: 24px; }
         h2 { font-size: 17px; margin: 0 0 10px; }
+        .panel-header h2 { margin: 0; }
         h3 { font-size: 13px; margin: 14px 0 6px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         p.subtitle { color: var(--text-muted); margin-top: -8px; }
         code { font-family: monaco, monospace; font-size: 12px; }
@@ -125,7 +127,7 @@
 
         select, input[type=text], input[type=search] {
             font-size: 13px;
-            font-family: monaco, monospace;
+            font-family: inherit;
             border: 1px solid var(--border);
             border-radius: 3px;
             padding: 3px 6px;
@@ -144,7 +146,7 @@
             border-radius: 3px;
             border: 1px solid var(--border);
             color: var(--text-muted);
-            white-space: nowrap;
+            max-width: 100%;
         }
         .badge.ok { color: var(--ok); border-color: var(--ok); }
         .badge.err { color: var(--err); border-color: var(--err); }
@@ -153,17 +155,18 @@
         /* Quick edit grid */
         .quick-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
             gap: 8px 16px;
         }
         .field { display: flex; flex-direction: column; gap: 2px; }
         .field label { font-size: 13px; }
         .field .key { font-size: 11px; color: var(--text-muted); font-family: monaco, monospace; }
-        .field input, .field select { width: 100%; }
+        .field input, .field select { width: 100%; font-family: monaco, monospace; }
         .field .hint { font-size: 11px; color: var(--text-muted); min-height: 1em; }
         .field .hint.err { color: var(--err); }
 
         /* All values tree */
+        #tree { overflow-x: auto; }
         #filter { width: 100%; margin-bottom: 10px; padding: 6px 8px; }
         .tree-row {
             display: flex;
@@ -178,10 +181,12 @@
         .tree-row .name { font-family: monaco, monospace; font-size: 13px; color: var(--accent); min-width: 200px; word-break: break-all; }
         .tree-row .idx { font-family: monaco, monospace; font-size: 12px; color: var(--text-muted); min-width: 60px; }
         .tree-row .type { font-size: 11px; color: var(--text-muted); min-width: 60px; }
-        .tree-row input[type=text] { flex: 1; min-width: 120px; max-width: 320px; }
+        .tree-row input[type=text] { font-family: monaco, monospace; flex: 1; min-width: 120px; max-width: 320px; }
         .tree-row .err-text { font-size: 11px; color: var(--err); }
         details > summary { cursor: pointer; list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
+        details > summary:not(.tree-row)::before { content: '▸'; display: inline-block; width: 12px; flex-shrink: 0; color: var(--text-muted); }
+        details[open] > summary:not(.tree-row)::before { content: '▾'; }
         details > summary .caret { display: inline-block; width: 12px; color: var(--text-muted); font-size: 11px; }
         details[open] > summary .caret { transform: rotate(90deg); }
         .children { padding-left: 22px; border-left: 1px solid var(--border); margin-left: 9px; }
@@ -208,9 +213,7 @@
 
         ul.tips { font-size: 13px; padding-left: 20px; margin: 0; }
 
-        .module-tools { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-        .module-tools input[type=search] { flex: 1; min-width: 180px; }
-        .module-row { display: grid; grid-template-columns: minmax(160px, 1fr) 110px; gap: 4px 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .module-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 4px 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
         .module-row .hint { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); }
         .module-row .hint.err { color: var(--err); }
         .module-row label { font-size: 13px; }
@@ -220,26 +223,32 @@
         .quest-card.available { border-color: var(--ok); }
         .quest-card p { margin: 4px 0; font-size: 13px; }
         .quest-card strong { font-size: 13px; }
-        .quest-flags { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .quest-flags { overflow-wrap: anywhere; width: 100%; border-collapse: collapse; font-size: 12px; }
         .quest-flags td, .quest-flags th { padding: 5px; border-bottom: 1px solid var(--border); text-align: left; }
         #run-summary { margin-top: 0; }
 
 
         [hidden], .panel.view-hidden, #save-bar.view-hidden { display: none !important; }
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-        .stat-card { background: var(--bg2); border: 1px solid var(--border); padding: 14px; border-radius: 5px; }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 12px; }
+        .stat-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--bg2); border: 1px solid var(--border); padding: 14px; border-radius: 4px; }
         .stat-card b { display: block; font-size: 25px; color: var(--accent); }
-        .stat-card p { margin: 5px 0 0; font-size: 12px; }
+        .stat-label { font-size: 13px; font-weight: 600; }
+        .godseed-group { margin-bottom: 18px; }
+        .godseed-group > h3 .badge { margin-left: 6px; vertical-align: middle; }
+        .stat-card p { margin: 0; font-size: 12px; color: var(--text-muted); }
         .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
-        .toolbar input[type=search] { flex: 1; min-width: 160px; padding: 7px; }
+        .toolbar input[type=search] { flex: 1 1 180px; min-width: 0; }
+        .toolbar input[type=search], .toolbar select { min-height: 34px; padding: 7px 8px; max-width: 100%; }
+        .toolbar label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+        input[type=checkbox] { accent-color: var(--accent); }
+        .toolbar input[type=checkbox] { margin: 0; }
+        #collectible-jumps { padding: 0 14px; font-size: 13px; }
         #navigation { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--border); }
         #navigation button { background: transparent; color: var(--accent); border: 1px solid var(--border); }
         #navigation button[aria-pressed=true] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
         .achievement { border-bottom: 1px solid var(--border); padding: 12px 0; }
-        .achievement > summary::before { content: '▸'; color: var(--text-muted); }
-        .achievement[open] > summary::before { content: '▾'; }
-        .achievement summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; }
-        .achievement summary strong { flex: 1; min-width: 190px; }
+        .achievement > summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; }
+        .achievement > summary > strong { flex: 1; min-width: 190px; }
         .achievement p, .collectible p { font-size: 13px; margin: 6px 0; }
         .achievement .detail { padding: 8px 0 0; }
         progress { accent-color: var(--accent); width: 100%; height: 7px; display: block; margin: 8px 0 0; }
@@ -259,10 +268,8 @@
         #working-note { color: var(--warn); font-size: 13px; }
         #progress-context { font-size: 13px; }
         a { color: var(--accent); }
-        .npc-card { border-bottom: 1px solid var(--border); padding: 13px 0; }
-        .npc-card > summary { display: flex; flex-wrap: wrap; gap: 7px; align-items: baseline; font-size: 13px; }
-        .npc-card > summary::before { content: '▸'; color: var(--text-muted); }
-        .npc-card[open] > summary::before { content: '▾'; }
+        .npc-card { border-bottom: 1px solid var(--border); padding: 12px 0; }
+        .npc-card > summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; }
         .npc-card > summary > strong { flex: 1; min-width: 110px; }
         .npc-card .badge { white-space: normal; }
         .npc-body { padding: 10px 0 0; font-size: 13px; }
@@ -274,6 +281,8 @@
         .npc-body .panel-header { padding: 8px 12px; }
         .npc-body .panel-body { padding: 12px; }
         .footer-note { font-size: 12px; color: var(--text-muted); margin-top: 16px; }
+
+        button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
         @media (max-width: 600px) {
             body { padding: 10px; }
@@ -315,12 +324,12 @@
             <button data-view="editor" aria-pressed="false">Save editor</button>
             <button data-view="all" aria-pressed="false">All sections</button>
         </nav>
-        <div id="collectible-jumps" class="toolbar" hidden style="padding:0 14px;font-size:13px"><a href="#cores-panel">Healing cores</a> · <a href="#melee-panel">Weapons</a> · <a href="#modules-panel">Modules</a></div>
+        <div id="collectible-jumps" class="toolbar" hidden><a href="#cores-panel">Healing cores</a> · <a href="#godseeds-panel">Godseeds</a> · <a href="#melee-panel">Weapons</a> · <a href="#modules-panel">Modules</a></div>
         <div class="editing-control"><label><input type="checkbox" id="enable-editing"> Enable save editing</label> <span class="muted" id="mode-label">Read-only · no values can be changed</span></div>
     </section>
 
     <section id="overview-panel" class="panel" data-view="overview" aria-labelledby="overview-heading">
-        <div class="panel-header"><h2 id="overview-heading" style="margin:0">Your progress</h2><button id="report-btn" class="secondary">Download progress report</button></div>
+        <div class="panel-header"><h2 id="overview-heading">Your progress</h2><button id="report-btn" class="secondary">Download progress report</button></div>
         <div class="panel-body">
             <p id="progress-context"></p>
             <p id="working-note" hidden>Preview includes unsaved edits. Reload the original file to check your in-game progress.</p>
@@ -332,7 +341,7 @@
     </section>
 
     <section id="achievements-panel" class="panel" data-view="achievements" aria-labelledby="achievements-heading">
-        <div class="panel-header"><h2 id="achievements-heading" style="margin:0">Achievements</h2><span id="achievement-count" class="muted" aria-live="polite"></span></div>
+        <div class="panel-header"><h2 id="achievements-heading">Achievements</h2><span id="achievement-count" class="muted" aria-live="polite"></span></div>
         <div class="panel-body">
             <p class="muted">All 42 goals. “Condition met” means the selected slot has supporting evidence. Some goals are only checked when you perform the action in-game. Expand a goal for its next step and evidence.</p>
             <div class="toolbar"><input id="achievement-search" type="search" aria-label="Search achievements" placeholder="Search achievement or location…"><select id="achievement-status" aria-label="Achievement status"><option value="all">All goals</option><option value="todo">Still to check</option><option value="met">Condition met</option><option value="unknown">Unknown / session only</option><option value="blocked">Run requirement failed</option></select></div>
@@ -342,28 +351,38 @@
     </section>
 
     <section id="cores-panel" class="panel" data-view="collectibles" aria-labelledby="cores-heading">
-        <div class="panel-header"><h2 id="cores-heading" style="margin:0">Healing cores</h2><span id="core-count" class="muted"></span></div>
+        <div class="panel-header"><h2 id="cores-heading">Healing cores</h2><span id="core-count" class="muted"></span></div>
         <div class="panel-body"><p id="core-summary"></p><p class="muted">The eight source flags describe this world’s pickups. The inventory total can include starting or carried-over cores; it need not equal collected sources. New Game Plus can reset world pickups while keeping the total.</p><div class="toolbar"><label class="muted"><input type="checkbox" id="core-missing"> Only uncollected / unknown</label></div><div id="core-list"></div></div>
     </section>
 
+    <section id="godseeds-panel" class="panel" data-view="collectibles" aria-labelledby="godseeds-heading">
+        <div class="panel-header"><h2 id="godseeds-heading">Godseeds</h2><span id="godseed-count" class="muted" aria-live="polite"></span></div>
+        <div class="panel-body">
+            <p id="godseed-summary"></p>
+            <p class="muted">Collection comes from pickup, shop and gift flags. Absorbed seeds still count as collected even when none remain in your bag. Loose godseeds from levelling at Big Bots are shown separately; the fixed-source checklist is not a lifetime total. New Game Plus can reset source flags while keeping stats or items.</p>
+            <div class="toolbar"><input id="godseed-search" type="search" aria-label="Search godseeds" placeholder="Search colour or location…"><select id="godseed-type" aria-label="Godseed type"><option value="all">All godseeds</option><option value="red">Red · Vigor</option><option value="orange">Orange · GunPower</option><option value="violet">Violet · Resolve</option><option value="green">Green · Luck</option><option value="malformed">Malformed · Gambler’s gift</option></select><label class="muted"><input id="godseed-missing" type="checkbox"> Only uncollected / unknown</label></div>
+            <div id="godseed-list"></div><p id="godseed-empty" class="muted" hidden>No godseed sources match these filters.</p>
+        </div>
+    </section>
+
     <section id="melee-panel" class="panel" data-view="collectibles" aria-labelledby="melee-heading">
-        <div class="panel-header"><h2 id="melee-heading" style="margin:0">Melee &amp; alternate weapons</h2><span id="melee-count" class="muted"></span></div>
+        <div class="panel-header"><h2 id="melee-heading">Melee &amp; alternate weapons</h2><span id="melee-count" class="muted"></span></div>
         <div class="panel-body"><p class="muted">Nine collectible alternate weapons, including the Kinzy Axe. The starting melee attack is separate. Readiness checks for eight owned weapons in this build.</p><div class="toolbar"><input type="search" id="melee-search" aria-label="Search weapons" placeholder="Search weapon or location…"><label class="muted"><input type="checkbox" id="melee-missing"> Only missing / unknown</label></div><div id="melee-list"></div></div>
     </section>
 
     <div id="quick-panel" class="panel" data-view="editor">
-        <div class="panel-header"><h2 style="margin:0">Resources &amp; stats</h2><span class="muted">Enable editing above to change values</span></div>
+        <div class="panel-header"><h2>Resources &amp; stats</h2><span class="muted">Enable editing above to change values</span></div>
         <div class="panel-body" id="quick-body"></div>
     </div>
 
     <section id="modules-panel" class="panel" data-view="collectibles" aria-labelledby="modules-heading">
         <div class="panel-header">
-            <h2 id="modules-heading" style="margin:0">Modules</h2>
+            <h2 id="modules-heading">Modules</h2>
             <span id="module-count" class="muted" aria-live="polite"></span>
         </div>
         <div class="panel-body">
             <p class="muted">Names and inventory order verified against build 1.2.12d. Search every location below. Enable editing above to change ownership, then equip in-game. Unequip before removing ownership.</p>
-            <div class="module-tools">
+            <div class="toolbar">
                 <input id="module-filter" type="search" aria-label="Search modules" placeholder="Search names or locations…">
                 <label class="muted"><input id="missing-only" type="checkbox"> Only missing / unknown</label>
             </div>
@@ -372,7 +391,7 @@
     </section>
 
     <section id="npcs-panel" class="panel" data-view="npcs" aria-labelledby="npcs-heading">
-        <div class="panel-header"><h2 id="npcs-heading" style="margin:0">NPC conversations</h2><span id="npc-count" class="muted" aria-live="polite"></span></div>
+        <div class="panel-header"><h2 id="npcs-heading">NPC conversations</h2><span id="npc-count" class="muted" aria-live="polite"></span></div>
         <div class="panel-body">
             <p id="npc-run-summary"></p>
             <p class="muted">Expand a character to see each saved encounter, its location and main-dialogue progress. Approach lines and later ambient repeats are counted separately. Alternate branches can stay unused; this is not a required 100% route or a guarantee an NPC is currently available. Quest thresholds can be met before every main conversation is covered.</p>
@@ -382,7 +401,7 @@
     </section>
 
     <section id="pasha-panel" class="panel" data-view="npcs" aria-labelledby="pasha-heading">
-        <div class="panel-header"><h2 id="pasha-heading" style="margin:0">Pasha’s encounter guidance</h2></div>
+        <div class="panel-header"><h2 id="pasha-heading">Pasha’s encounter guidance</h2></div>
         <div class="panel-body">
             <p id="run-summary"></p>
             <p class="muted">Read-only guidance from the saved day and dialogue flags. Finish each conversation, then change rooms. Eligibility does not guarantee an immediate appearance: room-change timers and other game state can also apply.</p>
@@ -393,7 +412,7 @@
 
     <div id="all-panel" class="panel" data-view="editor">
         <div class="panel-header">
-            <h2 style="margin:0">All values</h2>
+            <h2>All values</h2>
             <span class="muted" id="all-count"></span>
         </div>
         <div class="panel-body">
@@ -404,7 +423,7 @@
 
     <div id="changes-panel" class="panel">
         <div class="panel-header">
-            <h2 style="margin:0">Pending changes</h2>
+            <h2>Pending changes</h2>
             <button class="secondary" id="reset-all-btn">Revert all</button>
         </div>
         <div class="panel-body">
@@ -413,7 +432,7 @@
     </div>
 
     <div id="tips" class="panel" data-view="editor">
-        <div class="panel-header"><h2 style="margin:0">Before you replace the file</h2></div>
+        <div class="panel-header"><h2>Before you replace the file</h2></div>
         <div class="panel-body">
         <ul class="tips">
             <li>Quit the game before replacing the file, and keep the backup somewhere safe.</li>
@@ -1312,6 +1331,91 @@
         { index: 68, name: 'Kinzy Axe', region: 'Toler-Under-Foot', where: 'From the Huttle Drop save room, go east and descend to the lower opening near the Junkpit route. Continue through Toler-Under-Foot and defeat Xorogon, the Undefeated, for the axe.', evidence: 'ed3 → ed6 → ed7 → ed8 · pickup 102 · added content' },
     ];
 
+    // Current item IDs and scene placements, not the older worlddata annotations.
+    const GODSEED_TYPES = [
+        { id: 'red', index: 14, name: 'Red Godseed', aliases: 'red vigor', effect: 'Absorb to permanently increase Vigor by 1.', pendingMember: 'Vigor' },
+        { id: 'orange', index: 15, name: 'Orange Godseed', aliases: 'orange gunpower gun power', effect: 'Absorb to permanently increase GunPower by 1.', pendingMember: 'GunPower' },
+        { id: 'violet', index: 16, name: 'Violet Godseed', aliases: 'violet purple resolve volatility', effect: 'Absorb to permanently increase Resolve by 1.', pendingMember: 'Volatility' },
+        { id: 'green', index: 31, name: 'Green Godseed', aliases: 'green luck', effect: 'Absorb to permanently increase Luck by 1. Frenzied Shell’s fixed 3% drop roll is unaffected.' },
+        { id: 'malformed', index: 53, name: 'Malformed Godseed', aliases: 'malformed gambler gift', effect: 'A special gift from Gambler. A quest item, separate from the four absorbable godseeds.' },
+    ];
+    const GODSEED_SOURCES = [
+        { id: 'red-huttle-kika', type: 'red', name: 'Huttle Drop · Kika’s chamber approach', where: 'Check near the western entrance to Kika’s chamber, reached from the tall Huttle Drop shaft.', key: 'itempickupsvalue', index: 8, scene: 'ed5 · pickup 8 · item 14' },
+        { id: 'red-huttle-side', type: 'red', name: 'Huttle Drop · eastern side room', where: 'Take the side room between the Huttle Drop entrance area and Roslock Drift Beta. Search toward its right end.', key: 'itempickupsvalue', index: 20, scene: 'ed1r · pickup 20 · item 14' },
+        { id: 'red-junkpit', type: 'red', name: 'Junkpit · lower-right chamber ledge', where: 'Search the lower-right ledge of the Junkpit chamber with branches into its interior.', key: 'itempickupsvalue', index: 19, scene: 'jp9 · pickup 19 · item 14; connects jp5 / jp10 / jpi1' },
+        { id: 'red-woods-entrance', type: 'red', name: 'Six-Finger Woods · Lupoto entrance path', where: 'Explore the low forest path connecting directly to Lupoto. Search between the Lupoto exit and the next woods room.', key: 'itempickupsvalue', index: 29, scene: 'misty2 · pickup 29 · item 14' },
+        { id: 'red-bradley', type: 'red', name: 'Six-Finger Woods · Bradley Wells’s room', where: 'Search Bradley Wells’s pool room toward the exit leading to Lupoto.', key: 'itempickupsvalue', index: 54, scene: 'misty8 · pickup 54 · item 14' },
+        { id: 'orange-lupoto', type: 'orange', name: 'Lupoto · far-left side room', where: 'Explore the far-left end of the dead-end room branching from Lupoto’s starting-area route.', key: 'itempickupsvalue', index: 14, scene: 'dp2 · pickup 14 · item 15; entrance from dp1' },
+        { id: 'orange-junkpit', type: 'orange', name: 'Junkpit · upper chamber', where: 'Check the upper portion of the Junkpit chamber connected to Lupoto’s Relic area, just below the entrance from the upper Junkpit path.', key: 'itempickupsvalue', index: 17, scene: 'jp3 · pickup 17 · item 15; connects dp3 / jp2' },
+        { id: 'orange-beta', type: 'orange', name: 'Roslock Drift Beta · descent', where: 'Descend from Beta’s entrance room and search low in the next shaft, below the left branch to the healing-core room.', key: 'itempickupsvalue', index: 25, scene: 'rdb2 · pickup 25 · item 15' },
+        { id: 'orange-upper-woods', type: 'orange', name: 'Six-Finger Woods · upper room', where: 'Search the central-right ledge of the upper woods room that also contains Liferun, above the central descent.', key: 'itempickupsvalue', index: 52, scene: 'misty4 · pickup 52 · item 15' },
+        { id: 'orange-woods-branch', type: 'orange', name: 'Six-Finger Woods · lower branch', where: 'Explore the lower woods where Old Singer can appear. Check the ledge above the lower-left exit.', key: 'itempickupsvalue', index: 62, scene: 'misty13 · pickup 62 · item 15' },
+        { id: 'violet-lupoto-drop', type: 'violet', name: 'Lupoto · branch toward Huttle Drop', where: 'Explore the right-hand ledge above the exit down into Huttle Drop, in the lower Lupoto side passage.', key: 'itempickupsvalue', index: 3, scene: 'dp11b · pickup 3 · item 16; connects dp11 / ed1' },
+        { id: 'violet-huttle', type: 'violet', name: 'Huttle Drop · upper ledge', where: 'Check the upper ledge of the tall chamber east of the Huttle Drop Big Bot, above the entrance from Lua’s room.', key: 'itempickupsvalue', index: 11, scene: 'ed3 · pickup 11 · item 16' },
+        { id: 'violet-junkpit', type: 'violet', name: 'Junkpit · early side corridor', where: 'Search the left end of the low side corridor near the early Junkpit approach.', key: 'itempickupsvalue', index: 16, scene: 'jp13 · pickup 16 · item 16; connects jp1 / jp12' },
+        { id: 'violet-blakes', type: 'violet', name: 'Blake’s Stroll · Coburn Launcher room', where: 'Search the left side of the room where you obtain the Coburn Launcher, west of the Crash Site.', key: 'itempickupsvalue', index: 21, scene: 'gm1 · pickup 21 · item 16' },
+        { id: 'violet-lupoto-upper', type: 'violet', name: 'Lupoto · above the Motivator route', where: 'Search the upper-right area of the room connecting the Motivator route to the narrow passage farther right.', key: 'itempickupsvalue', index: 33, scene: 'dp6 · pickup 33 · item 16; connects dp7 / dpp1' },
+        { id: 'violet-stumbledeep', type: 'violet', name: 'Stumbledeep · deep shaft ledge', where: 'Enter the deep vertical shaft through its lower western entrance and search the ledge just to the right.', key: 'itempickupsvalue', index: 77, scene: 'sfdeep3 · pickup 77 · item 16; entrance from sfdeep2' },
+        { id: 'green-crossing', type: 'green', name: 'Ekman’s Crossing · Sap-Stone connection', where: 'Follow the route toward Charley. Check the lower ledge beside the connection into Sap-Stone.', key: 'itempickupsvalue', index: 89, scene: 'lands6 · pickup 89 · item 31; connects lands5 / lands7 / saps11' },
+        { id: 'green-bill', type: 'green', name: 'Crash Site · Bill’s shop', where: 'Buy for 8,000 Nanogel after returning three ship parts. This shop entry has one seed in stock.', key: 'billstock', index: 1, shop: true, scene: 'BillInventory[1] · item 31 · requires miscworldstate[61]' },
+        { id: 'malformed-gambler', type: 'malformed', name: 'Crash Site · Gambler’s gift', where: 'Return to Gambler after the final repair and finish the late conversation to receive the gift.', key: 'miscworldstate', index: 43, gift: true, scene: 'gamblerroom.Update · item 53; gift state 1 = ready, 2 = received' },
+    ];
+    function godseedCount(key, index, memberName) {
+        const leaf = memberName ? quickLeaf('', { key, member: memberName }) : index === undefined ? quickLeaf('', { key }) : listLeaf(key, index);
+        return leaf && typeof leaf.value === 'number' && Number.isInteger(leaf.value) && leaf.value >= 0 ? leaf.value : null;
+    }
+    function computeGodseeds(slot) {
+        return GODSEED_TYPES.map(type => {
+            const sources = GODSEED_SOURCES.filter(source => source.type === type.id).map(source => {
+                const value = godseedCount(source.key + slot, source.index);
+                const owned = value === null ? null : source.gift ? value === 2 ? true : value === 0 || value === 1 ? false : null : source.shop ? value === 0 ? true : value === 1 ? false : null : value > 0;
+                return { ...source, typeName: type.name, value, owned, giftReady: source.gift === true && value === 1 };
+            });
+            return { ...type, inventoryCount: godseedCount('inventory' + slot, type.index), pendingCount: type.pendingMember ? godseedCount('seedsinbotroom' + slot, undefined, type.pendingMember) : null, sources, totals: tally(sources.map(s => s.owned)) };
+        });
+    }
+    function renderGodseeds(model) {
+        const root = document.getElementById('godseed-list'); root.replaceChildren();
+        for (const type of model.godseeds) {
+            const group = document.createElement('section'); group.className = 'godseed-group'; group.dataset.type = type.id;
+            const h = document.createElement('h3'); h.textContent = type.name; h.append(badge(`${type.inventoryCount ?? 'Unknown'} held`));
+            const effect = document.createElement('p'); effect.className = 'muted'; effect.textContent = type.effect;
+            const count = document.createElement('p'); count.className = 'muted'; count.textContent = collectionCount(type.totals) + ' fixed sources collected';
+            if (type.pendingMember) count.textContent += ` · ${type.pendingCount ?? 'Unknown'} loose at Big Bots`;
+            group.append(h, effect, count);
+            for (const source of type.sources) {
+                const card = document.createElement('article'); card.className = 'collectible'; card.dataset.id = source.id; card.dataset.owned = String(source.owned);
+                card.dataset.search = `${type.name} ${type.aliases} ${source.name} ${source.where} ${source.scene}`.toLowerCase();
+                const title = document.createElement('h3'); title.textContent = source.name;
+                title.append(source.giftReady ? badge('Gift ready', 'warn') : collectionBadge(source.owned, true));
+                const route = document.createElement('p'); route.textContent = source.where;
+                card.append(title, route, evidenceBlock([`${source.key}${model.slot}[${source.index}] = ${source.value ?? 'unavailable'}`, source.scene]));
+                group.append(card);
+            }
+            group.append(evidenceBlock([`inventory${model.slot}[${type.index}] = ${type.inventoryCount ?? 'unavailable'}; current bag count, not collection history`, ...(type.pendingMember ? [`seedsinbotroom${model.slot}.${type.pendingMember} = ${type.pendingCount ?? 'unavailable'}; separate from fixed-source flags`] : [])]));
+            root.append(group);
+        }
+        document.getElementById('godseed-count').textContent = collectionCount(model.totals.godseeds) + ' fixed sources collected';
+        document.getElementById('godseed-summary').textContent = `${model.godseeds.length} types · ${GODSEED_SOURCES.filter(s => s.key === 'itempickupsvalue').length} world pickups, Bill’s Green Godseed and Gambler’s Malformed Godseed.`;
+        filterGodseeds();
+    }
+    function filterGodseeds() {
+        const query = document.getElementById('godseed-search').value.trim().toLowerCase();
+        const type = document.getElementById('godseed-type').value;
+        const missing = document.getElementById('godseed-missing').checked;
+        for (const group of document.querySelectorAll('.godseed-group')) {
+            let visible = 0;
+            for (const row of group.querySelectorAll('.collectible')) {
+                row.hidden = !!query && !row.dataset.search.includes(query) || missing && row.dataset.owned === 'true';
+                if (!row.hidden) visible++;
+            }
+            group.hidden = !visible || type !== 'all' && group.dataset.type !== type;
+        }
+        document.getElementById('godseed-empty').hidden = !!document.querySelector('.godseed-group:not([hidden])');
+    }
+    document.getElementById('godseed-search').addEventListener('input', filterGodseeds);
+    for (const id of ['godseed-type', 'godseed-missing']) document.getElementById(id).addEventListener('change', filterGodseeds);
+
     // Only finite, non-negative saved numbers are interpreted as counters/flags.
     function savedNumber(key, index) {
         const leaf = index === undefined ? quickLeaf('', { key }) : listLeaf(key, index);
@@ -1389,7 +1493,8 @@
         }));
         const weapons = MELEE.map(item => ({ ...item, owned: n('inventory', item.index) === null ? null : n('inventory', item.index) > 0 }));
         const cores = CORE_SOURCES.map(item => ({ ...item, owned: sourceState(item, slot) }));
-        const totals = { modules: tally(modules.map(x => x.owned)), weapons: tally(weapons.map(x => x.owned)), sources: tally(cores.map(x => x.owned)) };
+        const godseeds = computeGodseeds(slot), godseedSources = godseeds.flatMap(type => type.sources);
+        const totals = { modules: tally(modules.map(x => x.owned)), weapons: tally(weapons.map(x => x.owned)), sources: tally(cores.map(x => x.owned)), godseeds: tally(godseedSources.map(x => x.owned)) };
         const day = n('day');
         const parts = day !== null && Number.isInteger(day) && day >= 1 && day <= 6 ? day - 1 : null;
         const finished = savedBool('finishedgame' + slot);
@@ -1445,7 +1550,7 @@
             const recorded = savedNumber('achievementslist', ach.index) === 1;
             return { ...ach, ...r, recorded };
         });
-        return { slot, modules, weapons, cores, totals, achievements, npcs: computeNPCProgress(slot), parts, day, finished, coreTotal: n('inventory', 7), ngplus: n('newgameplus') };
+        return { slot, modules, weapons, cores, godseeds, godseedSources, totals, achievements, npcs: computeNPCProgress(slot), parts, day, finished, coreTotal: n('inventory', 7), ngplus: n('newgameplus') };
     }
 
     function showView(view) {
@@ -1480,6 +1585,7 @@
         document.getElementById('core-list').replaceChildren(...model.cores.map(x => makeCard(x, 'core')));
         document.getElementById('melee-count').textContent = collectionCount(model.totals.weapons) + ' owned';
         document.getElementById('melee-list').replaceChildren(...model.weapons.map(x => makeCard(x, 'weapon')));
+        renderGodseeds(model);
         filterCollectibles();
     }
     function filterCollectibles() {
@@ -1530,8 +1636,8 @@
         document.getElementById('working-note').hidden = changedLeaves().length === 0;
         const summary = document.getElementById('progress-summary'); summary.replaceChildren();
         const achMet = model.achievements.filter(x => x.status === 'met').length;
-        for (const [value, title, note] of [[collectionCount(model.totals.modules), 'Modules owned', 'Complete collection: 40'], [collectionCount(model.totals.weapons), 'Weapons owned', 'Complete collection: 9'], [collectionCount(model.totals.sources), 'Core sources collected', `${model.coreTotal ?? 'Unknown'} in inventory · 8 world sources`], [`${achMet}/42`, 'Achievement conditions met', 'Selected-slot evidence · Steam history separate']]) {
-            const card = document.createElement('div'); card.className = 'stat-card'; const b = document.createElement('b'); b.textContent = value; const label = document.createElement('div'); label.textContent = title; const p = document.createElement('p'); p.textContent = note; card.append(b, label, p); summary.append(card);
+        for (const [value, title, note] of [[collectionCount(model.totals.modules), 'Modules owned', 'Complete collection: 40'], [collectionCount(model.totals.weapons), 'Weapons owned', 'Complete collection: 9'], [collectionCount(model.totals.sources), 'Core sources collected', `${model.coreTotal ?? 'Unknown'} in inventory · 8 world sources`], [`${achMet}/42`, 'Achievement conditions met', 'Selected-slot evidence · Steam history separate'], [collectionCount(model.totals.godseeds), 'Godseed sources collected', '5 types · pickup, shop & gift']]) {
+            const card = document.createElement('div'); card.className = 'stat-card'; const b = document.createElement('b'); b.textContent = value; const label = document.createElement('div'); label.className = 'stat-label'; label.textContent = title; const p = document.createElement('p'); p.textContent = note; card.append(b, label, p); summary.append(card);
         }
         const next = document.getElementById('next-steps'); next.replaceChildren();
         const tips = [];
@@ -1540,6 +1646,7 @@
         for (const core of model.cores.filter(x => x.owned === false)) tips.push(`Healing core — ${core.name}: ${core.where}`);
         for (const mod of model.modules.filter(x => x.owned === false)) tips.push(`${mod.name} — ${mod.where}`);
         for (const weapon of model.weapons.filter(x => x.owned === false)) tips.push(`${weapon.name} — ${weapon.region}: ${weapon.where}`);
+        for (const seed of model.godseedSources.filter(x => x.owned === false)) tips.push(`${seed.typeName} — ${seed.name}: ${seed.where}`);
         if (!tips.length) tips.push('No missing collectibles proven by the available fields. Check the achievement list for remaining conditions and unknowns.');
         for (const tip of tips) { const li = document.createElement('li'); li.textContent = tip; next.append(li); }
         renderAchievements(model); renderCollectibles(model); renderNPCs(model);
@@ -1861,7 +1968,14 @@
             if (entry) return npc.name + ' · ' + entry.label;
         }
         if (/^otherdata\d+$/.test(key) && index === 71) return 'Pasha’s Lupoto travel flag';
+        if (/^miscworldstate\d+$/.test(key) && index === 43) return 'Gambler’s Malformed Godseed gift';
         if (/^miscworldstate\d+$/.test(key)) return ({1:'Pond bot healing core',9:'Reached Crash Site',18:'Reached Mabec',35:'Gili’s weapon gift',44:'Molly’s horse gift',46:'Relic’s Pebble gift',54:'Charley-area self-talk',58:'Scientist conversation',64:'Pasha’s Familiar completion flag'})[index] || '';
+        if (/^billstock\d+$/.test(key) && index === 1) return 'Bill’s Green Godseed stock';
+        if (/^inventory\d+$/.test(key) && GODSEED_TYPES.some(type => type.index === index)) return GODSEED_TYPES.find(type => type.index === index).name + ' (currently held)';
+        if (/^itempickupsvalue\d+$/.test(key)) {
+            const source = GODSEED_SOURCES.find(item => item.key === 'itempickupsvalue' && item.index === index);
+            if (source) return GODSEED_TYPES.find(type => type.id === source.type).name + ' · ' + source.name;
+        }
         if (/^inventory\d+$/.test(key)) return index === 7 ? 'Healing cores (inventory total)' : index === 46 ? 'Molly’s Work Horse' : (MELEE.find(x => x.index === index) || {}).name || '';
         if (/^itempickupsvalue\d+$/.test(key)) {
             const source = CORE_SOURCES.find(x => x.key === 'itempickupsvalue' && x.index === index);
@@ -2120,6 +2234,7 @@
             const moduleGroup = MODULE_GROUPS.find(g => new RegExp('^' + g.key + '(?:acquired|equipped)\\d+$').test(entry.key));
             el.dataset.search = (entry.key + ' ' + (moduleGroup ? moduleGroup.modules.map(m => m[1]).join(' ') : '') +
                 NPC_CATALOG.filter(npc => npc.key && new RegExp('^' + npc.key + '\\d+$').test(entry.key)).map(npc => ' ' + npc.name + ' ' + npc.encounters.map(e => e.label + ' ' + e.location).join(' ')).join('') +
+                (/^(?:inventory|itempickupsvalue|billstock|miscworldstate|seedsinbotroom)\d+$/.test(entry.key) ? ' Godseed ' + GODSEED_TYPES.map(type => type.name + ' ' + type.aliases).join(' ') : '') +
                 (/^(?:otherdata|miscworldstate)\d+$/.test(entry.key) ? ' Pasha Familiar ' : '')).toLowerCase();
             tree.appendChild(el);
         }
@@ -2282,7 +2397,7 @@
                 state = { ...loaded, originalBytes: bytes, filename: file.name, downloaded: false };
             } catch (err) {
                 state = null;
-                for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'npcs-panel', 'pasha-panel', 'all-panel', 'changes-panel', 'tips']) document.getElementById(id).classList.remove('visible');
+                for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'godseeds-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'npcs-panel', 'pasha-panel', 'all-panel', 'changes-panel', 'tips']) document.getElementById(id).classList.remove('visible');
                 dropzone.style.display = '';
                 document.getElementById('save-bar').classList.remove('visible');
                 showError(`Could not open ${file.name}. It doesn't look like a Ghost Song save file (${err.message}).`);
@@ -2311,14 +2426,15 @@
 
             document.getElementById('filter').value = '';
             document.getElementById('module-filter').value = '';
-            for (const id of ['missing-only', 'core-missing', 'melee-missing', 'npc-needs-dialogue']) document.getElementById(id).checked = false;
-            for (const id of ['achievement-search', 'melee-search', 'npc-search']) document.getElementById(id).value = '';
+            for (const id of ['missing-only', 'core-missing', 'melee-missing', 'npc-needs-dialogue', 'godseed-missing']) document.getElementById(id).checked = false;
+            for (const id of ['achievement-search', 'melee-search', 'npc-search', 'godseed-search']) document.getElementById(id).value = '';
             document.getElementById('achievement-status').value = 'all';
+            document.getElementById('godseed-type').value = 'all';
             renderQuick();
             renderModules();
             renderTree();
             renderChanges();
-            for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'npcs-panel', 'pasha-panel', 'all-panel', 'tips']) document.getElementById(id).classList.add('visible');
+            for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'godseeds-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'npcs-panel', 'pasha-panel', 'all-panel', 'tips']) document.getElementById(id).classList.add('visible');
             showView('overview');
             dropzone.style.display = 'none';
             document.getElementById('save-bar').classList.add('visible');
