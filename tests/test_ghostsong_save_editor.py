@@ -39,7 +39,7 @@ def f32(v: float) -> bytes:
     return struct.pack("<f", v)
 
 
-def build_save(*, knowledge=False, day=4, short_suit_list=False, progress=None) -> bytes:
+def build_save(*, knowledge=False, day=4, short_suit_list=False, progress=None, progress_sizes=None) -> bytes:
     INT32, SINGLE, BOOLEAN = 8, 11, 1
     ids = iter(range(100, 10_000))
 
@@ -110,7 +110,7 @@ def build_save(*, knowledge=False, day=4, short_suit_list=False, progress=None) 
             if value is None:
                 continue
             if isinstance(value, list):
-                saved_list(key, BOOLEAN if value and type(value[0]) is bool else INT32, value)
+                saved_list(key, BOOLEAN if value and type(value[0]) is bool else INT32, value, size=(progress_sizes or {}).get(key))
             elif isinstance(value, bool):
                 entries.append((key, prim(BOOLEAN, bytes([value]))))
             else:
@@ -463,6 +463,8 @@ def test_checker_defaults_readonly_and_report_preserves_bytes(page: Page, static
     report = json.loads(pathlib.Path(info.value.path()).read_text())
     assert report['slot'] == '1' and report['includesEdits'] is False
     assert len(report['achievements']) == 42
+    assert len(report['npcs']) == 19
+    assert report['npcs'][0]['encounters'][0]['status'] == 'unknown'
     assert report['totals']['modules']['unknown'] == 40
     assert save_file.read_bytes() == build_save()
 
@@ -634,3 +636,142 @@ def test_counter_thresholds_and_boss_indices_at_completion(page: Page, static_se
     axe = next(x for x in m['weapons'] if x['index'] == 68)
     assert axe['region'] == 'Toler-Under-Foot'
     assert 'Huttle Drop' in axe['where'] and 'ed3 → ed6 → ed7 → ed8' in axe['evidence']
+
+# ─── NPC conversation checker ────────────────────────────────────────────────
+
+def npc_model(page, npc_id):
+    return next(npc for npc in progress_model(page)['npcs'] if npc['id'] == npc_id)
+
+
+def npc_entry(page, npc_id, index):
+    return next(e for e in npc_model(page, npc_id)['encounters'] if e['index'] == index)
+
+
+def test_npc_tab_replaces_pasha_and_keeps_nested_guidance(page: Page, static_server):
+    load_knowledge_save(page, readonly=True)
+    expect(page.locator('#navigation button[data-view="pasha"]')).to_have_count(0)
+    page.locator('#navigation button[data-view="npcs"]').click()
+    expect(page.locator('#npcs-panel')).to_be_visible()
+    expect(page.locator('.npc-card')).to_have_count(19)
+    expect(page.locator('#npc-count')).to_contain_text('19 characters')
+    pasha = page.locator('.npc-card[data-npc="pasha"]')
+    pasha.locator('> summary').click()
+    expect(pasha.locator('#pasha-panel')).to_be_visible()
+    expect(pasha.locator('#pasha-locations')).to_contain_text('hidden crashed pod')
+    expect(page.locator('#npc-run-summary')).to_contain_text('3 ship parts returned')
+    assert page.evaluate('changedLeaves().length') == 0
+    assert page.evaluate('NRBF.bytesEqual(buildVerifiedFile().out,state.originalBytes)')
+
+
+def test_npc_main_dialogue_excludes_approach_and_ambient(page: Page, static_server):
+    load_knowledge_save(page, readonly=True, progress={'billprogress1':[0,2,1,0,2,2,1]})
+    bill = npc_model(page, 'bill')
+    assert bill['totals']['covered'] == 2
+    assert bill['totals']['total'] == 6
+    first = npc_entry(page, 'bill', 1)
+    assert first['status'] == 'covered' and first['covered'] == first['main'] == 1
+    second = npc_entry(page, 'bill', 2)
+    assert second['status'] == 'progress' and second['covered'] == 0 and second['main'] == 2
+    # Final camp entry has no approach; its one main conversation is covered at 1.
+    assert npc_entry(page, 'bill', 6)['status'] == 'covered'
+    assert npc_entry(page, 'bill', 3)['status'] == 'unrecorded'
+    assert npc_entry(page, 'bill', 4)['covered'] == 1
+    page.locator('#navigation button[data-view="npcs"]').click()
+    page.locator('#npc-search').fill('Bill')
+    expect(page.locator('.npc-card:visible')).to_have_count(1)
+    page.locator('.npc-card[data-npc="bill"] > summary').click()
+    page.locator('#npc-needs-dialogue').check()
+    expect(page.locator('.npc-card[data-npc="bill"] .npc-encounter:visible')).to_have_count(4)
+    expect(page.locator('.npc-card[data-npc="bill"] .npc-encounter[data-index="1"]')).to_be_hidden()
+
+
+def test_shared_rime_array_is_split_by_character(page: Page, static_server):
+    load_knowledge_save(page, readonly=True, progress={'rimeprogress1':[0,5,1,2,0,4,4,3]})
+    expected = {'rime':[1], 'hector':[2], 'outlier':[3,4], 'scientist':[5], 'slovenmuck':[6], 'relic':[7]}
+    for name, indices in expected.items():
+        assert [e['index'] for e in npc_model(page, name)['encounters']] == indices
+    assert npc_entry(page, 'rime', 1)['status'] == 'covered'
+    assert npc_entry(page, 'slovenmuck', 6)['status'] == 'covered'
+    assert npc_entry(page, 'relic', 7)['status'] == 'progress'
+    assert npc_entry(page, 'relic', 7)['covered'] == 2
+    assert npc_entry(page, 'hector', 2)['covered'] == 0
+    page.locator('#navigation button[data-view="editor"]').click()
+    page.locator('#filter').fill('Slovenmuck')
+    expect(page.locator('#tree > details[data-key="rimeprogress1"]')).to_be_visible()
+
+
+def test_pasha_pod_and_starting_area_indices_match_assets(page: Page, static_server):
+    values = [0] * 15
+    values[9], values[10] = 5, 1
+    load_knowledge_save(page, readonly=True, progress={'pashaprogress1':values})
+    pod, surface = npc_entry(page, 'pasha', 9), npc_entry(page, 'pasha', 10)
+    assert pod['label'] == 'Hidden crashed pod' and pod['status'] == 'covered'
+    assert surface['label'] == 'Near the starting area' and surface['status'] == 'progress'
+    assert surface['covered'] == 0
+    assert npc_entry(page, 'pasha', 13)['location'] == 'Crash Site'
+    assert npc_entry(page, 'pasha', 14)['location'].startswith('Stoffbloom')
+
+
+@pytest.mark.parametrize('value,expected', [(1,'variant'),(2,'variant'),(4,'covered')])
+def test_shared_branch_counter_does_not_invent_a_dialogue_percentage(page: Page, static_server, value, expected):
+    load_knowledge_save(page, readonly=True, progress={'luaprogress1':[0,0,0,value,0,0,0]})
+    entry = npc_entry(page, 'lua', 3)
+    assert entry['status'] == expected
+    assert entry['main'] is None and entry['covered'] is None
+    page.locator('#navigation button[data-view="npcs"]').click()
+    page.locator('.npc-card[data-npc="lua"] > summary').click()
+    expect(page.locator('.npc-card[data-npc="lua"] .npc-encounter[data-index="3"] progress')).to_have_count(0)
+
+
+def test_npc_missing_fields_and_slots_remain_unknown(page: Page, static_server):
+    load_knowledge_save(page, readonly=True, progress={'billprogress1':[0,2,3,3,4,3,1], 'achievementslist':[1]*42})
+    assert npc_model(page, 'bill')['totals']['covered'] == 6
+    assert npc_model(page, 'charley')['encounters'] == []
+    assert npc_model(page, 'charley')['hasData'] is False
+    page.locator('#slot-select').select_option('2')
+    for npc in progress_model(page)['npcs']:
+        assert npc['totals']['covered'] == 0
+        assert all(e['status'] == 'unknown' and e['value'] is None for e in npc['encounters'])
+    assert len(progress_model(page)['npcs']) == 19
+
+
+def test_unknown_positive_encounter_is_preserved_without_a_completion_guess(page: Page, static_server):
+    values = [0] * 11
+    values[10] = 23
+    load_knowledge_save(page, readonly=True, progress={'billprogress1':values})
+    extra = npc_entry(page, 'bill', 10)
+    assert extra['status'] == 'unknown' and extra['value'] == 23
+    assert extra['target'] is None and extra['covered'] is None
+    assert extra['label'] == 'Other saved encounter 10'
+
+
+def test_npc_progress_refreshes_with_edits_and_reverts(page: Page, static_server):
+    original = load_knowledge_save(page, progress={'billprogress1':[0,2,1,0,2,2,1]})
+    bill_card = page.locator('.npc-card[data-npc="bill"]')
+    bill_card.locator('> summary').click()
+    page.locator('#filter').fill('billprogress1')
+    tree = page.locator('#tree > details[data-key="billprogress1"]')
+    tree.locator('> summary').click()
+    field = tree.locator('input[aria-label="[2]"]')
+    field.fill('3'); field.press('Tab')
+    assert npc_entry(page, 'bill', 2)['status'] == 'covered'
+    assert bill_card.get_attribute('open') is not None
+    expect(page.locator('#changes-list')).to_contain_text('Bill · Camp conversation 2')
+    with page.expect_download() as info:
+        page.locator('#download-btn').click()
+    edited = pathlib.Path(info.value.path()).read_bytes()
+    assert len(edited) == len(original)
+    assert [(a,b) for a,b in zip(original,edited) if a != b] == [(1,3)]
+    page.locator('#reset-all-btn').click()
+    assert npc_entry(page, 'bill', 2)['status'] == 'progress'
+    assert page.evaluate('NRBF.bytesEqual(buildVerifiedFile().out,state.originalBytes)')
+
+
+def test_npc_counters_use_list_size_not_backing_capacity(page: Page, static_server):
+    values = [0,2] + [0]*7 + [99]
+    load_knowledge_save(page, readonly=True, progress={'billprogress1':values}, progress_sizes={'billprogress1':2})
+    bill = npc_model(page, 'bill')
+    assert bill['totals']['covered'] == 1 and bill['totals']['unknown'] == 5
+    assert npc_entry(page, 'bill', 1)['status'] == 'covered'
+    assert npc_entry(page, 'bill', 2)['value'] is None
+    assert all(e['index'] != 9 for e in bill['encounters'])

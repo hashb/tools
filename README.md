@@ -6,7 +6,7 @@ Live at **https://tools.chenna.me**
 
 ## Tools
 
-- [Ghost Song Progress Checker](ghostsong-save-editor.html) — Track all 42 achievement goals, identify missing healing cores, and find every module and alternate weapon. Includes optional safe save editing.
+- [Ghost Song Progress Checker](ghostsong-save-editor.html) — Track all 42 achievement goals and NPC conversations, identify missing healing cores, and find every module and alternate weapon. Includes optional safe save editing.
 - [Plist Editor](plist-editor.html) — Upload an XML plist file to view and interactively edit its structure as an expandable tree.
 
 ## Building the index

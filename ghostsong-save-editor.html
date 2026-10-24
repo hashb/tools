@@ -259,6 +259,20 @@
         #working-note { color: var(--warn); font-size: 13px; }
         #progress-context { font-size: 13px; }
         a { color: var(--accent); }
+        .npc-card { border-bottom: 1px solid var(--border); padding: 13px 0; }
+        .npc-card > summary { display: flex; flex-wrap: wrap; gap: 7px; align-items: baseline; font-size: 13px; }
+        .npc-card > summary::before { content: '▸'; color: var(--text-muted); }
+        .npc-card[open] > summary::before { content: '▾'; }
+        .npc-card > summary > strong { flex: 1; min-width: 110px; }
+        .npc-card .badge { white-space: normal; }
+        .npc-body { padding: 10px 0 0; font-size: 13px; }
+        .npc-body p { margin: 5px 0; }
+        .npc-goals { background: var(--bg2); border-left: 3px solid var(--accent); padding: 8px 12px; margin: 12px 0; }
+        .npc-encounter { padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; margin: 8px 0; }
+        .npc-encounter-head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+        .npc-encounter progress { margin-top: 7px; }
+        .npc-body .panel-header { padding: 8px 12px; }
+        .npc-body .panel-body { padding: 12px; }
         .footer-note { font-size: 12px; color: var(--text-muted); margin-top: 16px; }
 
         @media (max-width: 600px) {
@@ -297,7 +311,7 @@
             <button data-view="overview" aria-pressed="true">Overview</button>
             <button data-view="achievements" aria-pressed="false">Achievements</button>
             <button data-view="collectibles" aria-pressed="false">Collectibles</button>
-            <button data-view="pasha" aria-pressed="false">Pasha</button>
+            <button data-view="npcs" aria-pressed="false">NPCs</button>
             <button data-view="editor" aria-pressed="false">Save editor</button>
             <button data-view="all" aria-pressed="false">All sections</button>
         </nav>
@@ -357,8 +371,18 @@
         </div>
     </section>
 
-    <section id="pasha-panel" class="panel" data-view="pasha" aria-labelledby="pasha-heading">
-        <div class="panel-header"><h2 id="pasha-heading" style="margin:0">Pasha’s encounters</h2></div>
+    <section id="npcs-panel" class="panel" data-view="npcs" aria-labelledby="npcs-heading">
+        <div class="panel-header"><h2 id="npcs-heading" style="margin:0">NPC conversations</h2><span id="npc-count" class="muted" aria-live="polite"></span></div>
+        <div class="panel-body">
+            <p id="npc-run-summary"></p>
+            <p class="muted">Expand a character to see each saved encounter, its location and main-dialogue progress. Approach lines and later ambient repeats are counted separately. Alternate branches can stay unused; this is not a required 100% route or a guarantee an NPC is currently available. Quest thresholds can be met before every main conversation is covered.</p>
+            <div class="toolbar"><input id="npc-search" type="search" aria-label="Search NPCs" placeholder="Search NPC or encounter location…"><label class="muted"><input id="npc-needs-dialogue" type="checkbox"> Hide covered encounters</label></div>
+            <div id="npc-list"></div><p id="npc-empty" class="muted" hidden>No NPC encounters match these filters.</p>
+        </div>
+    </section>
+
+    <section id="pasha-panel" class="panel" data-view="npcs" aria-labelledby="pasha-heading">
+        <div class="panel-header"><h2 id="pasha-heading" style="margin:0">Pasha’s encounter guidance</h2></div>
         <div class="panel-body">
             <p id="run-summary"></p>
             <p class="muted">Read-only guidance from the saved day and dialogue flags. Finish each conversation, then change rooms. Eligibility does not guarantee an immediate appearance: room-change timers and other game state can also apply.</p>
@@ -1334,7 +1358,7 @@
         ['exp03', 'Big Bots', 'Exploration', 'Find the six friendly Big Bots in Lupoto, Stoffbloom, Huttle Drop, Junkpit, Stumbledeep and Ekman’s Crossing.', 'bots', 6],
         ['exp04', 'Feeling Healthy', 'Exploration', 'Have at least 7 healing cores in the saved inventory. See the eight source locations below.', 'cores', 7],
         ['exp05', 'The Cut Machine', 'Exploration', 'Obtain Relic’s Pebble of Perspective. Use it above the Crash Site and shut down to enter the special visit; finish the visit and leave.', 'cut'],
-        ['npc01', 'Familiar', 'People', 'Finish Pasha’s camp dialogue after three deliveries, then visit her hidden Stoffbloom pod before returning a fourth part. The Pasha tab shows saved prerequisites.', 'misc', 64],
+        ['npc01', 'Familiar', 'People', 'Finish Pasha’s camp dialogue after three deliveries, then visit her hidden Stoffbloom pod before returning a fourth part. The NPCs tab includes Pasha’s saved prerequisites.', 'misc', 64],
         ['npc02', 'Charley', 'People', 'Reach the far end of Ekman’s Crossing and interact with Charley. Extra air jumps help with the long crossing.', 'charley'],
         ['npc03', 'Clawing At The Roots Of A Cosmic Order', 'People', 'Finish conversations with Saymund at eight separate encounter entries. Revisit him around Lupoto, the Crash Site, Stoffbloom, Junkpit, Stumbledeep and Beta as the day advances.', 'saymund', 8],
         ['npc04', 'Retired Explorer', 'People', 'Follow Mutt’s encounters through Alpha, Stoffbloom, Alpha again and Gamma. Visit his final resting place.', 'mutt'],
@@ -1421,7 +1445,7 @@
             const recorded = savedNumber('achievementslist', ach.index) === 1;
             return { ...ach, ...r, recorded };
         });
-        return { slot, modules, weapons, cores, totals, achievements, parts, day, finished, coreTotal: n('inventory', 7), ngplus: n('newgameplus') };
+        return { slot, modules, weapons, cores, totals, achievements, npcs: computeNPCProgress(slot), parts, day, finished, coreTotal: n('inventory', 7), ngplus: n('newgameplus') };
     }
 
     function showView(view) {
@@ -1511,14 +1535,14 @@
         }
         const next = document.getElementById('next-steps'); next.replaceChildren();
         const tips = [];
-        if (model.day === 4 && model.achievements.find(x => x.id === 'npc01').status !== 'met') tips.push('Before the next delivery: finish Pasha’s camp dialogue and visit the hidden pod in Stoffbloom. See the Pasha tab.');
+        if (model.day === 4 && model.achievements.find(x => x.id === 'npc01').status !== 'met') tips.push('Before the next delivery: finish Pasha’s camp dialogue and visit the hidden pod in Stoffbloom. See Pasha in the NPCs tab.');
         if (model.day !== null && model.day < 4 && model.achievements.find(x => x.id === 'npc01').status !== 'met') tips.push('Keep finishing crew conversations between deliveries. Pasha’s hidden-pod encounter is available after three parts.');
         for (const core of model.cores.filter(x => x.owned === false)) tips.push(`Healing core — ${core.name}: ${core.where}`);
         for (const mod of model.modules.filter(x => x.owned === false)) tips.push(`${mod.name} — ${mod.where}`);
         for (const weapon of model.weapons.filter(x => x.owned === false)) tips.push(`${weapon.name} — ${weapon.region}: ${weapon.where}`);
         if (!tips.length) tips.push('No missing collectibles proven by the available fields. Check the achievement list for remaining conditions and unknowns.');
         for (const tip of tips) { const li = document.createElement('li'); li.textContent = tip; next.append(li); }
-        renderAchievements(model); renderCollectibles(model);
+        renderAchievements(model); renderCollectibles(model); renderNPCs(model);
     }
     document.getElementById('navigation').addEventListener('click', event => { const button = event.target.closest('button[data-view]'); if (button) showView(button.dataset.view); });
     document.getElementById('enable-editing').addEventListener('change', event => {
@@ -1538,13 +1562,266 @@
         downloadBytes(new TextEncoder().encode(JSON.stringify(body, null, 2)), `ghost-song-progress-slot-${m.slot || 'unknown'}.json`);
     });
 
-    const PASHA_FLAGS = {
-        1: 'First camp conversation', 2: 'Camp after one part', 3: 'Camp after two parts',
-        4: 'Camp after three parts', 8: 'Stoffbloom, first outdoor conversation',
-        9: 'Lupoto, near the starting area', 10: 'Hidden crashed pod',
-        11: 'Later Stoffbloom conversation', 12: 'Lupoto, by the Relic',
-        13: 'Stoffbloom, repeat visit',
-    };
+    const NPC_CATALOG = [
+        {"id":"pasha","name":"Pasha","key":"pashaprogress","guide":"Finish camp conversations between deliveries. Her hidden-pod encounter has a narrow story window; detailed guidance is included below.","goals":["npc01","npc05"],"encounters":[
+            {"index":1,"label":"First camp conversation","location":"Crash Site","variants":[[1,3,1]],"refs":["gm3 / pashac1","pasha / pashac1"]},
+            {"index":2,"label":"Camp after one part","location":"Crash Site","variants":[[1,3,1]],"refs":["pasha / PashaCamp2"]},
+            {"index":3,"label":"Camp after two parts","location":"Crash Site","variants":[[1,4,2]],"refs":["jp3d / PashaCamp3","pasha / PashaCamp3"]},
+            {"index":4,"label":"Camp after three parts","location":"Crash Site","variants":[[1,2,2]],"refs":["pasha / PashaCamp4"]},
+            {"index":5,"label":"Additional camp variant","location":"Crash Site","variants":[[1,4,1]],"refs":["pasha / PashaCamp5"],"alternate":true},
+            {"index":6,"label":"Final camp conversation variant","location":"Crash Site","variants":[[1,2,1]],"refs":["gm3 / PashaCamp6_nocharleymention","pasha / PashaCamp6_nocharleymention"]},
+            {"index":7,"label":"Later camp conversation variant","location":"Crash Site","variants":[[1,1,1]],"refs":["gm3 / PashaCamp7","jp3d / PashaCamp7","pasha / PashaCamp7"]},
+            {"index":8,"label":"First outdoor conversation","location":"Stoffbloom · east of camp","variants":[[1,1,2]],"refs":["fa9 / PashaWorld1","pasha / PashaWorld1"]},
+            {"index":9,"label":"Hidden crashed pod","location":"Stoffbloom","variants":[[1,4,3]],"refs":["fa3b / PashaWorld2","pasha / PashaWorld2"]},
+            {"index":10,"label":"Near the starting area","location":"Lupoto","variants":[[1,2,4]],"refs":["doopy3 / PashaWorld3","pasha / PashaWorld3"]},
+            {"index":11,"label":"Later outdoor conversation","location":"Stoffbloom · east of camp","variants":[[1,3,3]],"refs":["fa9 / PashaWorld4","pasha / PashaWorld4"]},
+            {"index":12,"label":"By the Relic","location":"Lupoto","variants":[[1,2,2]],"refs":["dp3 / PashaWorld5","pasha / PashaWorld5"]},
+            {"index":13,"label":"Later camp-side conversation","location":"Crash Site","variants":[[1,2,3]],"refs":["gm3 / PashaWorld6","pasha / PashaWorld6"]},
+            {"index":14,"label":"Repeat outdoor encounter","location":"Stoffbloom · east of camp","variants":[[1,2,4]],"refs":["fa9 / PashaWorld7","pasha / PashaWorld7"]},
+        ]},
+        {"id":"molly","name":"Molly","key":"mollyprogress","guide":"Keep talking at the Crash Site between repairs. Later dialogue varies with the module and the ending.","goals":["npc08","npc05"],"encounters":[
+            {"index":1,"label":"Camp conversation 1","location":"Crash Site","variants":[[1,2,2]],"refs":["gm3 / mollyc1","molly / mollyc1"]},
+            {"index":2,"label":"Camp conversation 2","location":"Crash Site","variants":[[1,5,2]],"refs":["molly / mollycamp2"]},
+            {"index":3,"label":"Camp conversation 3","location":"Crash Site","variants":[[1,3,2]],"refs":["molly / mollycamp3"]},
+            {"index":5,"label":"Camp conversation 5","location":"Crash Site","variants":[[1,2,1],[1,6,1]],"refs":["molly / mollycamp5","molly / mollycamp5_didntusemodule","molly / mollycamp5_nomodule"]},
+            {"index":6,"label":"Camp conversation 6 / ending variant","location":"Crash Site","variants":[[1,1,1],[1,1,3]],"refs":["molly / mollycamp6","molly / mollycamp6alt"]},
+        ]},
+        {"id":"bill","name":"Bill","key":"billprogress","guide":"Check Bill at the Crash Site between ship-part deliveries; his shop stock and dialogue are separate.","goals":["npc05"],"encounters":[
+            {"index":1,"label":"Camp conversation 1","location":"Crash Site","variants":[[1,1,1]],"refs":["bill / BILL","gm3 / BILL"]},
+            {"index":2,"label":"Camp conversation 2","location":"Crash Site","variants":[[1,2,1]],"refs":["bill / BILLcamp2"]},
+            {"index":3,"label":"Camp conversation 3","location":"Crash Site","variants":[[1,2,1]],"refs":["bill / BILLcamp3"]},
+            {"index":4,"label":"Camp conversation 4","location":"Crash Site","variants":[[1,3,2]],"refs":["bill / BILLcamp4"]},
+            {"index":5,"label":"Camp conversation 5","location":"Crash Site","variants":[[1,2,1]],"refs":["bill / BILLcamp5"]},
+            {"index":6,"label":"Camp conversation 6 / ending variant","location":"Crash Site","variants":[[0,1,1]],"refs":["bill / BILLcamp6"]},
+        ]},
+        {"id":"roper","name":"Roper","key":"roperprogress","guide":"Talk at camp between repairs. Ship-part return sequences have their own conversation entries.","goals":[],"encounters":[
+            {"index":1,"label":"Camp conversation 1","location":"Crash Site","variants":[[1,3,3]],"refs":["gm3 / ropercamp1","roper / ropercamp1"]},
+            {"index":2,"label":"Camp conversation 2","location":"Crash Site","variants":[[1,3,3]],"refs":["gambler_int1 / ropercamp2","roper / ropercamp2"]},
+            {"index":3,"label":"Camp conversation 3","location":"Crash Site","variants":[[1,3,2]],"refs":["gm3 / ropercamp3","gm3 / ropercamp3 (1)","roper / ropercamp3","roper / ropercamp3 1"]},
+            {"index":4,"label":"Camp conversation 4","location":"Crash Site","variants":[[1,3,3]],"refs":["gambler_int1 / ropercamp4","roper / ropercamp4"]},
+            {"index":5,"label":"Camp conversation 5","location":"Crash Site","variants":[[1,2,2]],"refs":["gm3 / ropercamp5","roper / ropercamp5"]},
+            {"index":6,"label":"Camp conversation 6 / ending variant","location":"Crash Site","variants":[[0,2,1]],"refs":["roper / ropercamp6"]},
+            {"index":7,"label":"Camp conversation 7 / ending variant","location":"Crash Site","variants":[[0,2,1]],"refs":["roper / ropercamp6alt"]},
+            {"index":10,"label":"First world meeting","location":"Stoffbloom","variants":[[1,1,1]],"refs":["fa1 / roperworld1"]},
+            {"index":15,"label":"Ship-part return 1","location":"Crash Site","variants":[[0,2,1]],"refs":["gm3 / RoperReturn1","roper / RoperReturn1"]},
+            {"index":16,"label":"Ship-part return 2","location":"Crash Site","variants":[[0,2,1]],"refs":["roper / RoperReturn2"]},
+            {"index":17,"label":"Ship-part return 3","location":"Crash Site","variants":[[0,2,1]],"refs":["roper / RoperReturn3"]},
+            {"index":18,"label":"Ship-part return 4","location":"Crash Site","variants":[[0,2,1]],"refs":["roper / RoperReturn4"]},
+            {"index":19,"label":"Ship-part return 5","location":"Crash Site","variants":[[0,2,1]],"refs":["roper / RoperReturn5"]},
+        ]},
+        {"id":"raven","name":"Raven","key":"ravenprogress","guide":"Talk inside Gambler between repairs and during Raven’s other encounters. The final conversation has alternate branches.","goals":["npc05"],"encounters":[
+            {"index":1,"label":"Camp conversation 1","location":"Inside Gambler","variants":[[1,2,2]],"refs":["gambler_int0 / camp1raven","raven / camp1raven"]},
+            {"index":2,"label":"Camp conversation 2","location":"Inside Gambler","variants":[[1,3,2]],"refs":["gambler_int0 / camp2raven","raven / camp2raven"]},
+            {"index":3,"label":"Camp conversation 3","location":"Inside Gambler","variants":[[1,3,3]],"refs":["raven / camp3raven"]},
+            {"index":4,"label":"Crew conversation requirement","location":"Location not mapped","variants":[],"refs":["crewchecker.checkcharacters: ravenprogress[4] >= 2"]},
+            {"index":5,"label":"Camp conversation 5","location":"Inside Gambler","variants":[[1,4,5]],"refs":["raven / camp5raven"]},
+            {"index":6,"label":"Camp conversation 6 / ending variant","location":"Inside Gambler","variants":[[1,1,1],[1,1,2],[1,2,2]],"refs":["raven / camp6raven_newbody","raven / camp6raven_oldbody","raven / camp6stranger"]},
+        ]},
+        {"id":"matilda","name":"Matilda","key":"matildaprogress","guide":"Finish each camp conversation between deliveries. Final dialogue varies with the ending.","goals":[],"encounters":[
+            {"index":1,"label":"Camp conversation 1","location":"Crash Site","variants":[[1,3,2]],"refs":["gm3 / matildac1","matilda / matildac1"]},
+            {"index":2,"label":"Camp conversation 2","location":"Crash Site","variants":[[1,2,1]],"refs":["matilda / matildacamp2"]},
+            {"index":3,"label":"Camp conversation 3","location":"Crash Site","variants":[[1,2,2]],"refs":["matilda / matildacamp3","matilda / matildacamp3 alt"]},
+            {"index":4,"label":"Camp conversation 4","location":"Crash Site","variants":[[1,3,2]],"refs":["matilda / matildacamp4"]},
+            {"index":5,"label":"Camp conversation 5","location":"Crash Site","variants":[[1,3,1]],"refs":["matilda / matildacamp5"]},
+            {"index":6,"label":"Camp conversation 6 / ending variant","location":"Crash Site","variants":[[1,1,1],[1,2,2]],"refs":["matilda / matildacamp6","matilda / matildacamp6alt"]},
+        ]},
+        {"id":"gambler","name":"Gambler","key":"gamblerprogress","guide":"Talk inside the ship between repairs. Returning ship parts and exhausting dialogue are separate checks.","goals":[],"encounters":[
+            {"index":1,"label":"Camp conversation 1","location":"Inside Gambler","variants":[[1,3,2]],"refs":["gambler / gambler_camp1"]},
+            {"index":2,"label":"Camp conversation 2","location":"Inside Gambler","variants":[[1,2,1]],"refs":["gambler / gambler_camp2"]},
+            {"index":3,"label":"Camp conversation 3","location":"Inside Gambler","variants":[[1,2,5]],"refs":["gambler / gambler_camp3"]},
+            {"index":4,"label":"Camp conversation 4","location":"Inside Gambler","variants":[[1,2,2]],"refs":["gambler / gambler_camp4"]},
+            {"index":6,"label":"Camp conversation 6 / ending variant","location":"Inside Gambler","variants":[[1,2,5]],"refs":["gambler / gambler_camp6"]},
+            {"index":7,"label":"Camp conversation 7 / ending variant","location":"Inside Gambler","variants":[[1,1,1]],"refs":["gambler / gambler_camp6alt","gambler_int2 / gambler_camp6alt"]},
+        ]},
+        {"id":"lua","name":"Lua","key":"luaprogress","guide":"Follow Lua’s revised encounters across Huttle Drop, the Crash Site, Sap-Stone and Ekman’s Crossing. Some variants share a counter.","goals":[],"encounters":[
+            {"index":1,"label":"Earlier Huttle Drop variant","location":"Huttle Drop","variants":[[1,2,1]],"refs":["ed2 / Lua1 OG"],"alternate":true},
+            {"index":2,"label":"First revised encounter","location":"Huttle Drop","variants":[[1,2,1]],"refs":["ed2 / LuaWorld1","lua / LuaWorld1"]},
+            {"index":3,"label":"Camp / later encounter variants","location":"Crash Site / alternate route","variants":[[0,1,2],[1,3,3]],"refs":["gm3 / LuaWorld2","lua / LuaWorld2","lua / LuaWorld6"]},
+            {"index":4,"label":"Sap-Stone encounter","location":"Sap-Stone · Leaf’s area","variants":[[0,2,1]],"refs":["lua / LuaWorld5","saps10 / LuaWorld5"]},
+            {"index":6,"label":"Ekman’s Crossing encounter","location":"Ekman’s Crossing","variants":[[1,1,2]],"refs":["lands4 / LuaWorld7","lua / LuaWorld7"]},
+        ]},
+        {"id":"mutt","name":"Mutt","key":"muttprogress","guide":"Follow Mutt from Alpha to Stoffbloom and back into Alpha. His final resting place and hammer are in Gamma.","goals":["npc04"],"encounters":[
+            {"index":1,"label":"First meeting","location":"Roslock Drift Alpha","variants":[[1,4,1]],"refs":["rdalpha1 / npc_MuttWorld1"]},
+            {"index":2,"label":"Stoffbloom meeting","location":"Stoffbloom","variants":[[1,3,1]],"refs":["fa8 / npc_MuttWorld2","fa9 / npc_MuttWorld2","mutt / npc_MuttWorld2","rdalpha1 / npc_MuttWorld2"]},
+            {"index":3,"label":"Return to the tunnels","location":"Roslock Drift Alpha","variants":[[1,1,1]],"refs":["mutt / npc_MuttWorld3","rdalpha5 / npc_MuttWorld3"]},
+            {"index":4,"label":"After the gauntlet","location":"Roslock Drift Alpha","variants":[[1,1,1]],"refs":["mutt / npc_MuttWorld3cont","rdalpha5 / npc_MuttWorld3cont"]},
+        ]},
+        {"id":"gili","name":"Gili","key":"giliprogress","guide":"Follow Gili through Lupoto, Ekman’s Crossing and Sap-Stone. Hector’s outcome changes later encounters.","goals":["npc07"],"encounters":[
+            {"index":1,"label":"First meeting","location":"Lupoto · surface","variants":[[1,3,1]],"refs":["doopy3 / GiliWorld1","gili / GiliWorld1"]},
+            {"index":2,"label":"Crossing encounter","location":"Ekman’s Crossing","variants":[[1,2,6]],"refs":["doopy3 / GiliWorld2","gili / GiliWorld2"]},
+            {"index":3,"label":"Lower Sap-Stone encounter","location":"Sap-Stone","variants":[[1,2,5]],"refs":["doopy3 / GiliWorld3","gili / GiliWorld3","saps2 / GiliWorld3"]},
+            {"index":4,"label":"Upper Sap-Stone encounter","location":"Sap-Stone","variants":[[1,6,3]],"refs":["doopy3 / GiliWorld4","gili / GiliWorld4","saps5 / GiliWorld4"]},
+            {"index":5,"label":"Later encounter / reward route","location":"Sap-Stone","variants":[[1,3,2]],"refs":["doopy3 / GiliWorld5","gili / GiliWorld5"]},
+            {"index":6,"label":"Alternate Hector outcome","location":"Ekman’s Crossing","variants":[[1,3,2]],"refs":["doopy3 / GiliWorld5b","gili / GiliWorld5b","lands1 / GiliWorld5b"]},
+            {"index":7,"label":"Late encounter variant","location":"Crash Site / Roslock Drift Alpha","variants":[[1,1,1]],"refs":["doopy3 / GiliWorld6","gili / GiliWorld6","gm3 / GiliWorld6","rdalpha5 / GiliWorld6"]},
+        ]},
+        {"id":"saymund","name":"Saymund","key":"saymundprogress","guide":"Find Saymund’s separate world encounters as the repair quest advances. His achievement threshold differs from exhausting every conversation.","goals":["npc03"],"encounters":[
+            {"index":1,"label":"Camp-side encounter","location":"Crash Site","variants":[[1,2,1]],"refs":["gm3 / Saymund World 1","saymund / Saymund World 1"]},
+            {"index":2,"label":"World encounter 2","location":"Location not mapped","variants":[[1,2,1]],"refs":["saymund / Saymund World 2"]},
+            {"index":3,"label":"Lupoto encounter","location":"Lupoto","variants":[[1,2,3]],"refs":["dp5 / Saymund World 3","saymund / Saymund World 3"]},
+            {"index":4,"label":"By the Motivator route","location":"Lupoto","variants":[[1,3,1]],"refs":["dp7 / Saymund World 4","saymund / Saymund World 4"]},
+            {"index":7,"label":"Crossing / Junkpit approach","location":"Ekman’s Crossing","variants":[[1,1,2]],"refs":["lands5 / Saymund World 7","saymund / Saymund World 7"]},
+            {"index":10,"label":"Later crossing encounter","location":"Ekman’s Crossing","variants":[[1,1,2]],"refs":["lands4 / Saymund World 10","saymund / Saymund World 10"]},
+            {"index":11,"label":"Near the Magma Spear","location":"Roslock Drift Beta","variants":[[1,3,1]],"refs":["rdb1c / Saymund World 11","saymund / Saymund World 11"]},
+            {"index":12,"label":"Junkpit encounter","location":"Junkpit","variants":[[1,3,1]],"refs":["jp13 / Saymund World 12","saymund / Saymund World 12"]},
+            {"index":14,"label":"By the laboratory entrance","location":"Stoffbloom","variants":[[1,2,3]],"refs":["fa7 / Saymund World 14","saymund / Saymund World 14"]},
+            {"index":15,"label":"Before the water","location":"Stumbledeep","variants":[[1,2,3]],"refs":["saymund / Saymund World 15","sf6 / Saymund World 15"]},
+            {"index":16,"label":"Laboratory conversation","location":"Stoffbloom","variants":[[1,2,3]],"refs":["fa7 / Saymund Special","saymund / Saymund Special"]},
+            {"index":17,"label":"Laboratory alternate conversation","location":"Stoffbloom","variants":[[1,1,1]],"refs":["fa7 / Saymund SpecialAlt","jp3d / Saymund SpecialAlt","saymund / Saymund SpecialAlt"]},
+        ]},
+        {"id":"rime","name":"Rime","key":"rimeprogress","guide":"Return to the robot in Lupoto and finish her conversation chain. Only Rime’s own entry is shown here.","goals":[],"encounters":[
+            {"index":1,"label":"Lupoto conversation chain","location":"Lupoto · surface","variants":[[1,4,1]],"refs":["doopy3 / RimeWorld1"]},
+        ]},
+        {"id":"mabec","name":"Mabec","key":"mabecprogress","guide":"Find the shop through Norberg Laboratory’s elevator shaft, then keep talking beyond the first greeting.","goals":["npc09"],"encounters":[
+            {"index":1,"label":"Elevator shop conversation","location":"Norberg Laboratory","variants":[[1,3,3]],"refs":["dp14 / mabec"]},
+        ]},
+        {"id":"relic","name":"Relic","key":"rimeprogress","guide":"Relic’s extended conversation in Lupoto uses a shared save array. The Pebble gift is tracked separately.","goals":["npc06","exp05"],"encounters":[
+            {"index":7,"label":"Extended Lupoto conversation","location":"Lupoto · Relic’s site","variants":[[1,3,3]],"refs":["dp3 / RelicTalkingEncounter","relic / RelicTalkingEncounter"]},
+        ]},
+        {"id":"hector","name":"Hector","key":"rimeprogress","guide":"Hector’s dialogue and hostile outcome are separate. Follow the associated Gili storyline for her reward.","goals":[],"encounters":[
+            {"index":2,"label":"First conversation","location":"Ekman’s Crossing","variants":[[1,1,5]],"refs":["hector / HectorWorld1","lands5 / HectorWorld1"]},
+        ]},
+        {"id":"outlier","name":"Outlier","key":"rimeprogress","guide":"Check the two encounters in Ekman’s Crossing. These counters share an array with several other characters.","goals":[],"encounters":[
+            {"index":3,"label":"First encounter","location":"Ekman’s Crossing","variants":[[1,4,2]],"refs":["lands2 / OutlierWorld1","outlier / OutlierWorld1"]},
+            {"index":4,"label":"Later encounter variant","location":"Ekman’s Crossing","variants":[[1,1,2]],"refs":["lands2 / OutlierWorld2","lands2 / OutlierWorld2b","outlier / OutlierWorld2","outlier / OutlierWorld2b"]},
+        ]},
+        {"id":"slovenmuck","name":"Slovenmuck","key":"rimeprogress","guide":"Explore the concealed cave in Huttle Drop near the Clutcher pickup.","goals":[],"encounters":[
+            {"index":6,"label":"Hidden cave conversation","location":"Huttle Drop","variants":[[1,3,2]],"refs":["ed2b / Slovenmuck World"]},
+        ]},
+        {"id":"scientist","name":"The Scientist","key":"rimeprogress","guide":"Visit the Cut Machine and finish the conversation. Leaving that visit is a separate achievement trigger.","goals":["exp05"],"encounters":[
+            {"index":5,"label":"Cut Machine conversation","location":"The Cut Machine","variants":[[1,5,2]],"refs":["cutmachine / Scientist1"]},
+        ]},
+        {"id":"charley","name":"Charley","key":null,"guide":"Find Charley at the far end of Ekman’s Crossing. The save does not expose a reliable conversation counter for this interaction.","goals":["npc02"],"encounters":[
+        ]},
+    ];
+
+    // Saved dialogue counters include approach lines, main dialogue and ambient
+    // repeats. npc_generic.Go switches to AmbientFabs after approach + main.
+    // The final ambient line can repeat forever: it is not a completion target.
+    function computeNPCProgress(slot) {
+        return NPC_CATALOG.map(npc => {
+            const encounters = npc.encounters.map(entry => {
+                const raw = savedNumber(npc.key + slot, entry.index);
+                const value = Number.isInteger(raw) ? raw : null;
+                const variants = entry.variants;
+                const shapes = new Set(variants.map(v => v[0] + ':' + v[1]));
+                const targets = variants.map(v => v[0] + v[1]);
+                const target = targets.length ? Math.max(...targets) : null;
+                const variant = shapes.size > 1;
+                const status = value === null || target === null ? 'unknown' : value >= target ? 'covered' : value === 0 ? 'unrecorded' : variant ? 'variant' : 'progress';
+                const main = shapes.size === 1 ? variants[0][1] : null;
+                const covered = main === null || value === null ? null : Math.max(0, Math.min(main, value - variants[0][0]));
+                const readout = value === null ? 'Save counter unavailable'
+                    : target === null ? `Saved counter ${value} · dialogue length not mapped`
+                    : status === 'covered' ? 'Main dialogue covered' + (variant ? ' · branch varies' : ` · ${main}/${main}`)
+                    : variant ? `Branch-dependent dialogue · saved counter ${value}`
+                    : value === 0 ? `Not recorded · 0/${main} main conversations`
+                    : `${covered}/${main} main conversations covered` + (value < variants[0][0] ? ' · approach in progress' : '');
+                return { ...entry, value, target, main, covered, variant, status, readout, field: `${npc.key}${slot}[${entry.index}]` };
+            });
+            // Preserve evidence from newer/unmapped encounters without treating
+            // list capacity or another character's shared-array entry as dialogue.
+            if (npc.key && npc.key !== 'rimeprogress') {
+                const mapped = new Set(encounters.map(e => e.index));
+                savedList(npc.key + slot).forEach((_, index) => {
+                    const value = savedNumber(npc.key + slot, index);
+                    if (index === 0 || mapped.has(index) || !Number.isInteger(value) || value <= 0) return;
+                    encounters.push({ index, label: `Other saved encounter ${index}`, location: 'Location not mapped', variants: [], refs: [], value, target: null, main: null, covered: null, variant: false, status: 'unknown', readout: `Saved counter ${value} · encounter not mapped`, field: `${npc.key}${slot}[${index}]` });
+                });
+            }
+            const totals = { covered: encounters.filter(e => e.status === 'covered').length, total: encounters.length,
+                unknown: encounters.filter(e => e.status === 'unknown').length, started: encounters.filter(e => e.value !== null && e.value > 0).length };
+            const hasData = encounters.some(e => e.value !== null);
+            return { ...npc, encounters, totals, hasData };
+        });
+    }
+
+    function renderNPCs(model) {
+        const root = document.getElementById('npc-list');
+        const opened = new Set([...root.querySelectorAll('.npc-card[open]')].map(el => el.dataset.npc));
+        // Keep the existing encounter guide as one DOM node inside Pasha's card.
+        const pashaGuide = document.getElementById('pasha-panel');
+        pashaGuide.remove();
+        root.replaceChildren();
+        let coveredTotal = 0, knownTotal = 0;
+        for (const npc of model.npcs) {
+            coveredTotal += npc.totals.covered; knownTotal += npc.totals.total;
+            const card = document.createElement('details'); card.className = 'npc-card'; card.dataset.npc = npc.id; card.open = opened.has(npc.id);
+            card.dataset.name = npc.name.toLowerCase(); card.dataset.search = `${npc.name} ${npc.guide} ${npc.encounters.map(e => e.label + ' ' + e.location).join(' ')}`.toLowerCase();
+            const summary = document.createElement('summary');
+            const title = document.createElement('strong'); title.textContent = npc.name;
+            const text = npc.totals.total ? `${npc.totals.covered}/${npc.totals.total} entries with main dialogue covered` : 'Conversation progress unavailable';
+            summary.append(title, badge(text, npc.totals.total && npc.totals.covered === npc.totals.total ? 'ok' : ''));
+            if (npc.totals.unknown) summary.append(badge(`${npc.totals.unknown} unknown`));
+            const body = document.createElement('div'); body.className = 'npc-body';
+            const guide = document.createElement('p'); guide.textContent = npc.guide; body.append(guide);
+            const related = document.createElement('div'); related.className = 'npc-goals';
+            for (const id of npc.goals) {
+                const goal = model.achievements.find(a => a.id === id); if (!goal) continue;
+                const p = document.createElement('p');
+                p.textContent = `${goal.name}: ${goal.text}`; related.append(p);
+            }
+            // The exact crew conditions stay distinct from exhausting dialogue.
+            const crewRules = { bill: ['billprogress', 5, 2], pasha: ['pashaprogress', 9, 2], raven: ['ravenprogress', 4, 2], molly: ['mollyprogress', 5, 3] };
+            const rule = crewRules[npc.id];
+            if (rule) {
+                const value = savedNumber(rule[0] + model.slot, rule[1]);
+                const p = document.createElement('p');
+                p.textContent = 'Good Friends dialogue check: ' + (value === null ? 'unknown' : value >= rule[2] ? 'met' : 'not met yet');
+                p.append(evidenceBlock([`${rule[0]}${model.slot}[${rule[1]}] = ${value ?? 'unavailable'}; needs >= ${rule[2]}. This is a crew achievement condition, not a main-dialogue length.`]));
+                related.append(p);
+            }
+            if (related.childNodes.length) body.append(related);
+            const rows = document.createElement('div'); rows.className = 'npc-encounters';
+            for (const entry of npc.encounters) {
+                const row = document.createElement('article'); row.className = 'npc-encounter'; row.dataset.index = entry.index; row.dataset.status = entry.status;
+                row.dataset.search = `${entry.label} ${entry.location}`.toLowerCase();
+                const head = document.createElement('div'); head.className = 'npc-encounter-head';
+                const label = document.createElement('strong'); label.textContent = entry.label;
+                head.append(label, badge(entry.status === 'covered' ? 'Covered' : entry.status === 'unrecorded' ? 'Not recorded' : entry.status === 'unknown' ? 'Unknown' : entry.status === 'variant' ? 'Branch varies' : 'In progress', entry.status === 'covered' ? 'ok' : entry.status === 'progress' ? 'warn' : ''));
+                const location = document.createElement('p'); location.className = 'muted'; location.textContent = entry.location;
+                const progress = document.createElement('p'); progress.textContent = entry.readout;
+                row.append(head, location, progress);
+                if (entry.main !== null && entry.covered !== null && entry.main > 0) {
+                    const bar = document.createElement('progress'); bar.max = entry.main; bar.value = entry.covered;
+                    bar.setAttribute('aria-label', `${npc.name}: ${entry.label} main dialogue`); row.append(bar);
+                }
+                if (entry.alternate) { const note = document.createElement('p'); note.className = 'muted'; note.textContent = 'Earlier / alternative encounter: may stay unused on this route.'; row.append(note); }
+                const evidence = [`${entry.field} = ${entry.value ?? 'unavailable'}`];
+                for (const [approach, main, ambient] of entry.variants) evidence.push(`Prefab variant: ${approach} approach + ${main} main + ${ambient} ambient entries. Main dialogue covered at counter >= ${approach + main}.`);
+                evidence.push(...entry.refs);
+                row.append(evidenceBlock(evidence)); rows.append(row);
+            }
+            if (!npc.encounters.length) {
+                const unavailable = document.createElement('p'); unavailable.className = 'muted'; unavailable.textContent = 'No reliable persistent conversation counter is mapped for this NPC. See the related goal for what the save can establish.'; rows.append(unavailable);
+            }
+            body.append(rows);
+            if (npc.id === 'pasha') body.append(pashaGuide);
+            card.append(summary, body); root.append(card);
+        }
+        document.getElementById('npc-count').textContent = `${model.npcs.length} characters · ${coveredTotal}/${knownTotal} encounter entries covered`;
+        document.getElementById('npc-run-summary').textContent = model.parts === null ? 'Story day unavailable for this slot.' : `Day ${model.day} · ${model.parts} ship part${model.parts === 1 ? '' : 's'} returned. Check crew dialogue between deliveries.`;
+        filterNPCs();
+    }
+
+    function filterNPCs() {
+        const query = document.getElementById('npc-search').value.trim().toLowerCase();
+        const needs = document.getElementById('npc-needs-dialogue').checked;
+        for (const card of document.querySelectorAll('.npc-card')) {
+            const npcMatch = !!query && card.dataset.name.includes(query);
+            let visible = 0;
+            for (const row of card.querySelectorAll('.npc-encounter')) {
+                row.hidden = (needs && row.dataset.status === 'covered') || (!!query && !npcMatch && !row.dataset.search.includes(query));
+                if (!row.hidden) visible++;
+            }
+            card.hidden = (!visible && !!card.querySelector('.npc-encounter')) || (!!query && !npcMatch && !card.dataset.search.includes(query));
+        }
+        document.getElementById('npc-empty').hidden = !!document.querySelector('.npc-card:not([hidden])');
+    }
+    document.getElementById('npc-search').addEventListener('input', filterNPCs);
+    document.getElementById('npc-needs-dialogue').addEventListener('change', filterNPCs);
+
+    const PASHA_FLAGS = Object.fromEntries(NPC_CATALOG.find(npc => npc.id === 'pasha').encounters.map(e => [e.index, e.label + ' · ' + e.location]));
 
     function pruneInputs() {
         for (const [leaf, bindings] of inputsByLeaf) {
@@ -1578,7 +1855,11 @@
     function indexLabel(key, index) {
         const mod = moduleForKey(key, index);
         if (mod) return mod[1];
-        if (/^pashaprogress\d+$/.test(key)) return PASHA_FLAGS[index] || '';
+        for (const npc of NPC_CATALOG) {
+            if (!npc.key || !new RegExp('^' + npc.key + '\\d+$').test(key)) continue;
+            const entry = npc.encounters.find(e => e.index === index);
+            if (entry) return npc.name + ' · ' + entry.label;
+        }
         if (/^otherdata\d+$/.test(key) && index === 71) return 'Pasha’s Lupoto travel flag';
         if (/^miscworldstate\d+$/.test(key)) return ({1:'Pond bot healing core',9:'Reached Crash Site',18:'Reached Mabec',35:'Gili’s weapon gift',44:'Molly’s horse gift',46:'Relic’s Pebble gift',54:'Charley-area self-talk',58:'Scientist conversation',64:'Pasha’s Familiar completion flag'})[index] || '';
         if (/^inventory\d+$/.test(key)) return index === 7 ? 'Healing cores (inventory total)' : index === 46 ? 'Molly’s Work Horse' : (MELEE.find(x => x.index === index) || {}).name || '';
@@ -1671,9 +1952,9 @@
             ['Crash Site camp', 'Talk after each ship-part delivery until her dialogue repeats.', null, 'Camp dialogue depends on the day and previous conversations.'],
             ['Stoffbloom · first room east of camp', 'Between the Crash Site and the Stoffbloom teleporter. Leave and return after finishing the first conversation for the repeat visit.',
                 eastReady,
-                'One part returned, with that day’s camp dialogue finished; another encounter occurs after four parts.'],
+                'One part returned, with the required camp dialogue progressed far enough; another encounter occurs after four parts.'],
             ['Lupoto · right of the starting area', 'Look for her green hood and gas mask just right of where Deadsuit first wakes up.', ready(3, 3),
-                'Two parts returned, with that day’s camp dialogue finished.'],
+                'Two parts returned, with the required camp dialogue progressed far enough.'],
             ['Lupoto · by the Relic', 'The spot where Relic later gives the Pebble of Perspective. Follow the starting-area conversation with a room change.',
                 day === null || travel === null || progress(12) === null ? null : travel === 2 && (day < 4 || (day === 4 && progress(12) < 2)),
                 'Requires the Lupoto travel flag, and is limited by the day and this conversation’s progress.'],
@@ -1838,7 +2119,7 @@
             el.dataset.key = entry.key.toLowerCase();
             const moduleGroup = MODULE_GROUPS.find(g => new RegExp('^' + g.key + '(?:acquired|equipped)\\d+$').test(entry.key));
             el.dataset.search = (entry.key + ' ' + (moduleGroup ? moduleGroup.modules.map(m => m[1]).join(' ') : '') +
-                (/^pashaprogress\d+$/.test(entry.key) ? ' Pasha ' + Object.values(PASHA_FLAGS).join(' ') : '') +
+                NPC_CATALOG.filter(npc => npc.key && new RegExp('^' + npc.key + '\\d+$').test(entry.key)).map(npc => ' ' + npc.name + ' ' + npc.encounters.map(e => e.label + ' ' + e.location).join(' ')).join('') +
                 (/^(?:otherdata|miscworldstate)\d+$/.test(entry.key) ? ' Pasha Familiar ' : '')).toLowerCase();
             tree.appendChild(el);
         }
@@ -2001,7 +2282,7 @@
                 state = { ...loaded, originalBytes: bytes, filename: file.name, downloaded: false };
             } catch (err) {
                 state = null;
-                for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'pasha-panel', 'all-panel', 'changes-panel', 'tips']) document.getElementById(id).classList.remove('visible');
+                for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'npcs-panel', 'pasha-panel', 'all-panel', 'changes-panel', 'tips']) document.getElementById(id).classList.remove('visible');
                 dropzone.style.display = '';
                 document.getElementById('save-bar').classList.remove('visible');
                 showError(`Could not open ${file.name}. It doesn't look like a Ghost Song save file (${err.message}).`);
@@ -2030,14 +2311,14 @@
 
             document.getElementById('filter').value = '';
             document.getElementById('module-filter').value = '';
-            for (const id of ['missing-only', 'core-missing', 'melee-missing']) document.getElementById(id).checked = false;
-            for (const id of ['achievement-search', 'melee-search']) document.getElementById(id).value = '';
+            for (const id of ['missing-only', 'core-missing', 'melee-missing', 'npc-needs-dialogue']) document.getElementById(id).checked = false;
+            for (const id of ['achievement-search', 'melee-search', 'npc-search']) document.getElementById(id).value = '';
             document.getElementById('achievement-status').value = 'all';
             renderQuick();
             renderModules();
             renderTree();
             renderChanges();
-            for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'pasha-panel', 'all-panel', 'tips']) document.getElementById(id).classList.add('visible');
+            for (const id of ['session-panel', 'overview-panel', 'achievements-panel', 'cores-panel', 'melee-panel', 'quick-panel', 'modules-panel', 'npcs-panel', 'pasha-panel', 'all-panel', 'tips']) document.getElementById(id).classList.add('visible');
             showView('overview');
             dropzone.style.display = 'none';
             document.getElementById('save-bar').classList.add('visible');

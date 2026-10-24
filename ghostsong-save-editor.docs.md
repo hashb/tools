@@ -1,6 +1,6 @@
-Check a Ghost Song `SaveData` file locally for achievement progress, missing healing cores, modules and alternate weapons. The overview suggests where to go next; all 42 achievement goals have guidance and save evidence. Includes locations for 40 modules, 9 weapons and 8 healing-core sources in Steam build 1.2.12d. Optional editing retains the original filename and byte-preserving safety checks.
+Check a Ghost Song `SaveData` file locally for achievement progress, NPC conversations, missing healing cores, modules and alternate weapons. The overview suggests where to go next; all 42 achievement goals have guidance and save evidence. Includes locations for 40 modules, 9 weapons and 8 healing-core sources in Steam build 1.2.12d. Optional editing retains the original filename and byte-preserving safety checks.
 
-Open `ghostsong-save-editor.html` directly or serve it as a static page. Import the game's BinaryFormatter `SaveData` and select a slot. Everything runs locally without uploading the save, contacting Steam, or loading external assets. Use **Achievements**, **Collectibles** and **Pasha** to inspect progress. Search names/locations, filter unfinished goals or missing items, and expand individual evidence. A downloadable JSON progress report contains the selected slot's interpreted checklist and whether it includes pending edits. It is a report, not a game save.
+Open `ghostsong-save-editor.html` directly or serve it as a static page. Import the game's BinaryFormatter `SaveData` and select a slot. Everything runs locally without uploading the save, contacting Steam, or loading external assets. Use **Achievements**, **Collectibles** and **NPCs** to inspect progress. Search names/locations, filter unfinished goals or missing items, and expand individual evidence. A downloadable JSON progress report contains the selected slot's interpreted checklist and whether it includes pending edits. It is a report, not a game save.
 
 Editing is **off by default**, including controls in the raw tree. Turn on **Enable save editing** to change resources, stats or module ownership. Equip granted modules in-game; the ownership editor does not change equipment, power load or weapon bookkeeping, and cannot remove a currently equipped module. Turning editing off keeps pending edits and displays their preview warning. Loading another file returns to read-only mode. Original backup downloads always contain the original bytes. No personal save or proprietary assets are included in this tool.
 
@@ -36,6 +36,31 @@ Healing-core **inventory** and **source collection** remain separate. Starting/c
 Bill's initial core stock is 1; only stock 0 is interpreted as purchased. Negative/unlimited/disabled stock and unexpected values remain unknown. The pond bot uses `corebotpickup.DataNumber`, not a SparklyItem pickup flag, and must be checked separately.
 
 The nine weapon ownership indices are `inventory[1,11,12,26,32,33,34,35,68]`: Blast Shield, Hypersledge, Hulking Fist, Dolly, Painwheel, Hazard Blade, Hudson Goodshot, Magma Spear and Kinzy Axe. Hudson Goodshot's serialized internal name is `Goldglum` / `gilisgun`; the English UI name is verified in `UItexty.processlanguage`. The starting melee attack is not one of these nine.
+
+## NPC conversations
+
+The **NPCs** tab replaces the former Pasha-only tab. It has 19 character cards: Pasha, Molly, Bill, Roper, Raven, Matilda, Gambler, Lua, Mutt, Gili, Saymund, Rime, Mabec, Relic, Hector, Outlier, Slovenmuck, the Scientist and Charley. Search by name or encounter location and hide covered encounters. Each card shows encounter-level progress and related achievement conditions. Pasha's detailed spawn guidance is nested inside her card.
+
+The catalog tracks 92 named encounter entries. Ninety-one have dialogue-prefab length mappings; Raven's additional crew-condition entry has a known achievement threshold but no mapped main-dialogue length. Charley has no reliable persistent conversation counter and stays explicitly unknown. Extra positive saved entries outside an NPC's known catalog are exposed as unmapped rather than assigned an invented completion target. Missing or non-integer counters stay unknown. List backing capacity is never treated as saved progress.
+
+`npc_generic.getthecharnum` (**0x180f79e00**) reads the character's counter at `EncounterItem`. The generic controller's three lists are `ApproachFabs`, `ConvoFabs` and `AmbientFabs`. `npc_generic.Go` (**0x180f77550**) selects main dialogue using `counter - ApproachFabs.Count`, then switches to ambient dialogue at `ApproachFabs.Count + ConvoFabs.Count`. The checker calls this **main dialogue covered** and caps the displayed main-dialogue bar at its actual length. `AdvanceCharacter` (**0x180f760b0**) can hold the counter on the final ambient entry, which repeats; ambient lines do not create an unreachable 100% target.
+
+Counter values are state markers, not a transcript of lines heard. The catalog includes mutually exclusive endings and some earlier/alternative encounter variants that can remain unused. They are labelled as such. Lua, Molly, Raven and Matilda have variant-dependent lengths: when a counter could correspond to different main-dialogue lengths, the UI shows **Branch varies** with the saved counter, without a fabricated fraction or percentage. It only marks those main dialogues covered when the counter reaches every mapped variant's main-dialogue boundary. Aggregate counts describe catalog entries, not a required quest route.
+
+Several NPCs use the same `rimeprogress` array; their cards and raw-tree labels are deliberately split:
+
+| Character | Shared array index |
+| --- | --- |
+| Rime | 1 |
+| Hector | 2 |
+| Outlier | 3, 4 |
+| Scientist | 5 |
+| Slovenmuck | 6 |
+| Relic | 7 |
+
+Pasha's corrected encounter labels are **9 = hidden Stoffbloom pod**, **10 = Lupoto starting-area encounter**, **13 = later Crash Site conversation**, and **14 = repeat Stoffbloom encounter**. Spawn gates and achievement conditions are separate from exhausting every main conversation. In particular, a Pasha encounter can become eligible before all of that day's optional dialogue is covered, and Good Friends uses its own native thresholds.
+
+The counts come from the supplied scene and NPC/conversation/expansion prefabs, grouped by `WhichCharacter` and `EncounterItem`. Duplicate placements are merged and variant lengths retained. Serialized dialogue text and proprietary assets are not included. The read-only NPC model is also included in the downloaded progress report, follows the selected save slot, and refreshes when a raw edit or revert changes a counter. This adds no automatic quest or dialogue edits.
 
 ## Achievement evidence
 
@@ -93,4 +118,4 @@ The progress catalog targets this inspected build. A different release, unusual 
 
 The MS-NRBF codec and load-time safety checks are unchanged. Every opened file must survive a byte-identical decode/encode round trip. Keys, graph structure, list sizes and untouched primitive bytes remain intact. Numeric edits are type/range checked. Every edited export is parsed again, compared with the intended leaf values, and checked for the exact expected number of changes. Structural keys and sizes remain protected. Both file selection and drag/drop protect pending edits, including edits after a previous download.
 
-The browser tests use synthetic files for the default read-only view, report download, all 42 goals, 39/40 vs 8/9 vs 7/8 targets, missing-core identity, shop stock semantics, partial/missing fields, logical list size, cross-slot shared unlocks, runtime-only goals, NPC requirements, run limits, New Game Plus and safe editing/reverting. A local validation against the supplied save also verifies an identical backup, a one-byte Frenzied Shell edit, desktop/mobile views and no browser script errors. Personal save data and game assets are not committed.
+The browser tests use synthetic files for the default read-only view, report download, all 42 goals, 39/40 vs 8/9 vs 7/8 targets, missing-core identity, shop stock semantics, partial/missing fields, logical list size, cross-slot shared unlocks, runtime-only goals, NPC requirements, run limits, New Game Plus and safe editing/reverting. NPC checks additionally cover approach/main/ambient boundaries, shared-array attribution, variant ambiguity, corrected Pasha labels, unmapped encounters, selected-slot isolation, search/filter controls, nested Pasha guidance and live edit/revert refresh. A local validation against the supplied save also verifies an identical backup, a one-byte Frenzied Shell edit, desktop/mobile views and no browser script errors. Personal save data and game assets are not committed.
